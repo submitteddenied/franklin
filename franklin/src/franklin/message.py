@@ -53,6 +53,7 @@ class GenerationAmendment(Message):
     '''
     
     def __init__(self, time, watts):
+        super(GenerationAmendment, self).__init__()
         self.time = time
         self.watts = watts
 
@@ -65,3 +66,10 @@ class Bid(GenerationAmendment):
     def __init__(self, time, watts, price):
         super(Bid, self).__init__(time, watts)
         self.price = price
+        
+class LoadPrediction(Message):
+    
+    def __init__(self, time, watts):
+        super(LoadPrediction, self).__init__()
+        self.time = time
+        self.watts = watts
