@@ -41,9 +41,10 @@ class Message(object):
     passed around by the MessageDispatcher.
     '''
     nextId = 0
-    def __init__(self):
+    def __init__(self, sender):
         self.id = Message.nextId
         Message.nextId += 1
+        self.sender = sender
 
 class GenerationAmendment(Message):
     '''
@@ -52,8 +53,8 @@ class GenerationAmendment(Message):
     equipment that may need to warm up or cool down
     '''
     
-    def __init__(self, time, watts):
-        super(GenerationAmendment, self).__init__()
+    def __init__(self, sender, time, watts):
+        super(GenerationAmendment, self).__init__(sender)
         self.time = time
         self.watts = watts
 
@@ -62,14 +63,13 @@ class Bid(GenerationAmendment):
     A Bid is a message that is sent to AEMO specifying how much electricity can
     be generated in a time interval and for what price
     '''
-    
-    def __init__(self, time, watts, price):
-        super(Bid, self).__init__(time, watts)
+    def __init__(self, sender, time, watts, price):
+        super(Bid, self).__init__(sender, time, watts)
         self.price = price
         
 class LoadPrediction(Message):
     
-    def __init__(self, time, watts):
-        super(LoadPrediction, self).__init__()
+    def __init__(self, sender, time, watts):
+        super(LoadPrediction, self).__init__(sender)
         self.time = time
         self.watts = watts

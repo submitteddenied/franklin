@@ -3,6 +3,9 @@ This module contains Franklin's agents.
 '''
 
 from message import *
+from collections import deque
+
+INTERVALS_PER_DAY = 24 * 2 * 6;
 
 class Agent(object):
     '''
@@ -88,9 +91,29 @@ class AEMOperator(Agent):
     cost schedule.
     '''
     
+    def __init__(self, id, simulation, load_func):
+        super(AEMOperator, self).__init__(id, simulation)
+        self.pool_queue = deque()
+        self.load_pred_queue = deque()
+        for i in range(INTERVALS_PER_DAY - 1):
+            self.pool_queue.append([])
+            self.load_pred_queue.append([])
+        self.load = {}
+        self.load_func = load_func
+    
     def process_schedule(self, time):
-        self.simulation.log.debug("Get to work, slackers!")
         self.simulation.log.output("Producing Schedule for %s" % time)
+        #send load dispatch messages (probably just log them)
+        load = self.load_func(time)
+        bids = self.pool_queue.popleft()
+        
+        
+        #tell generators what tomorrow's load is predicted to be
+        
+        
+        if time.interval % 6 == 5:
+            #calculate the price for the trading period
+            pass
     
     def step(self, time):
         messages = self.get_messages()
@@ -112,7 +135,12 @@ class AEMOperator(Agent):
         pass
     
     def handle_bid(self, bid):
-        pass
+        if len(self.pool_queue) < INTERVALS_PER_DAY:
+            self.pool_queue.append([])
+        self.pool_queue[-1].append(bid)
     
     def handle_load_prediction(self, prediction):
-        pass
+        if not self.load.has_key(prediction.time):
+            self.load[prediction.time] = 0
+        self.load[prediction.time] += prediction.watts
+        
