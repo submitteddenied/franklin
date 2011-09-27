@@ -2,7 +2,8 @@
 This module contains Franklin's agents.
 '''
 
-from message import *
+from message import GenerationAmendment, LoadPrediction, Bid, Dispatch
+from simulation import Time
 from collections import deque
 
 INTERVALS_PER_DAY = 24 * 2 * 6;
@@ -37,6 +38,11 @@ class Generator(Agent):
     power to the NEM and makes money per MWh generated
     '''
     
+    def __init__(self, id, simulation, data_generator):
+        super(Generator, self).__init__(id, simulation)
+        self.data_gen = data_generator
+        self.markup = 1.1
+    
     def step(self, time):
         '''
         At each step, generators fetch their messages from the dispatcher, post
@@ -48,8 +54,8 @@ class Generator(Agent):
         ''' 
         messages = self.get_messages()
         self.simulation.log.debug("Generator %d: I got %d messages!" % (self.id, len(messages)))
-        
-        self.simulation.message_dispatcher.send(Bid(time.tomorrow(), 250, 50),
+        price = self.data_gen.get_cost(self, time.tomorrow()) * self.markup
+        self.simulation.message_dispatcher.send(Bid(time.tomorrow(), self.data_gen.get_capacity(self, time.tomorrow()), price),
                                               self.simulation.operator.id)
         
         return []
@@ -95,25 +101,51 @@ class AEMOperator(Agent):
         super(AEMOperator, self).__init__(id, simulation)
         self.pool_queue = deque()
         self.load_pred_queue = deque()
-        for i in range(INTERVALS_PER_DAY - 1):
-            self.pool_queue.append([])
-            self.load_pred_queue.append([])
         self.load = {}
         self.load_func = load_func
+        self.interval_pricelog = []
+        self.pricelog = []
+        
+        
+    def initialise(self, generators, generator_data_gen, load_data_gen):
+        time = Time(0, 0)
+        for i in range(288):
+            bidlist = []
+            for g in generators:
+                cap = generator_data_gen.get_capacity(g, time)
+                price = generator_data_gen.get_capacity(g, time)
+                bidlist.append(Bid(cap, price * g.markup))
+            self.load_pred_queue.append(load_data_gen.get_load(time))
+            time.interval += 1
     
     def process_schedule(self, time):
         self.simulation.log.output("Producing Schedule for %s" % time)
         #send load dispatch messages (probably just log them)
         load = self.load_func(time)
         bids = self.pool_queue.popleft()
+        bids.sort(key=lambda b: b.price)
         
+        dispatched = []
+        remaining = load
+        i = 0
+        while remaining > 0:
+            genned = min(bids[i].watts, remaining)
+            remaining -= bids[i]
+            dispatched.append((bids[i].sender, genned))
+            i += 1
         
+        self.simulation.logger.info("Load: %d, Dispatched %d generators. Interval price: %f" % (load, len(dispatched), bids[i-1].price))
+        self.interval_pricelog.append(bids[i-1])
         #tell generators what tomorrow's load is predicted to be
-        
+        for d in dispatched:
+            self.simulation.log.info(" - Dispatching generator %d for %dMW" % (d[0].id, d[1]))
+            self.simulation.message_dispatcher.send(Dispatch(self, time, d[1]), d[0].id)
         
         if time.interval % 6 == 5:
             #calculate the price for the trading period
-            pass
+            period_price = sum(self.interval_pricelog) / 6
+            self.simulation.log.info("Trading Period %d finished, spot price: %f" % (time.interval / 6, period_price))
+            self.pricelog.append((time, period_price))
     
     def step(self, time):
         messages = self.get_messages()
@@ -140,7 +172,7 @@ class AEMOperator(Agent):
         self.pool_queue[-1].append(bid)
     
     def handle_load_prediction(self, prediction):
-        if not self.load.has_key(prediction.time):
-            self.load[prediction.time] = 0
-        self.load[prediction.time] += prediction.watts
+        if len(self.load_pred_queue) < INTERVALS_PER_DAY:
+            self.load_pred_queue.append(0)
+        self.load_pred_queue[-1] += prediction.watts
         

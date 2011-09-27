@@ -73,3 +73,6 @@ class LoadPrediction(Message):
         super(LoadPrediction, self).__init__(sender)
         self.time = time
         self.watts = watts
+        
+class Dispatch(LoadPrediction):
+    pass

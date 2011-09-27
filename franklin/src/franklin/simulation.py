@@ -7,6 +7,7 @@ Created on 12/09/2011
 from message import MessageDispatcher
 from agents import *
 import aemo_functions
+import Generators
 
 class Simulation(object):
     '''
@@ -17,7 +18,8 @@ class Simulation(object):
         '''
         Constructor
         '''
-        self.agents = {1: Generator(1, self), 2: Consumer(2, self, aemo_functions.base_load, self.flat_load_dist)}
+        g = Generators.MathLoadGenerator()
+        self.agents = {1: Generator(1, self), 2: Consumer(2, self, g.get_load, self.flat_load_dist)}
         self.operator = AEMOperator(3, self)
         self.agents[self.operator.id] = self.operator
         self.message_dispatcher = MessageDispatcher()
