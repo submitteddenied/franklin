@@ -5,8 +5,8 @@ Created on 12/09/2011
 '''
 
 from message import MessageDispatcher
+from time import Time
 from agents import *
-import aemo_functions
 import Generators
 
 class Simulation(object):
@@ -18,9 +18,14 @@ class Simulation(object):
         '''
         Constructor
         '''
-        g = Generators.MathLoadGenerator()
-        self.agents = {1: Generator(1, self), 2: Consumer(2, self, g.get_load, self.flat_load_dist)}
-        self.operator = AEMOperator(3, self)
+        load_gen = Generators.MathLoadGenerator()
+        capacity_gen = Generators.StaticGenerationCapacityGenerator()
+        generators = {1: Generator(1, self, capacity_gen)}
+        self.agents = {2: Consumer(2, self, load_gen.get_load, self.flat_load_dist)}
+        for id, agent in generators.items():
+            self.agents[id] = agent
+        self.operator = AEMOperator(3, self, load_gen.get_load)
+        self.operator.initialise(generators.values(), capacity_gen, load_gen)
         self.agents[self.operator.id] = self.operator
         self.message_dispatcher = MessageDispatcher()
         self.log = Logger()
@@ -50,31 +55,6 @@ class Simulation(object):
                 nextTime.union(self.agents[a].step(t))
             thisTime = nextTime
         self.operator.process_schedule(t)
-
-
-class Time(object):
-    '''
-    Represents a time in the simulation.
-    '''
-    
-    def __init__(self, day, interval):
-        '''
-        Constructs a new time set to the given day and interval indices.
-        Intervals are 5-minute dispatch periods, which are the lowest resolution
-        available in the simulation. 
-        '''
-        self.day = day
-        self.interval = interval
-        
-    def tomorrow(self):
-        '''
-        Returns a copy of this time, set to tomorrow
-        Note: the new time will be at the same interval of the day
-        '''
-        return Time(self.day + 1, self.interval)
-    
-    def __str__(self):
-        return "<Day: %d, Interval: %d>" % (self.day, self.interval)
     
 import logging, sys
     

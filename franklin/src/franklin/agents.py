@@ -3,7 +3,7 @@ This module contains Franklin's agents.
 '''
 
 from message import GenerationAmendment, LoadPrediction, Bid, Dispatch
-from simulation import Time
+from time import Time
 from collections import deque
 
 INTERVALS_PER_DAY = 24 * 2 * 6;
@@ -55,7 +55,10 @@ class Generator(Agent):
         messages = self.get_messages()
         self.simulation.log.debug("Generator %d: I got %d messages!" % (self.id, len(messages)))
         price = self.data_gen.get_cost(self, time.tomorrow()) * self.markup
-        self.simulation.message_dispatcher.send(Bid(time.tomorrow(), self.data_gen.get_capacity(self, time.tomorrow()), price),
+        self.simulation.message_dispatcher.send(Bid(self,
+                                                    time.tomorrow(), 
+                                                    self.data_gen.get_capacity(self, time.tomorrow()), 
+                                                    price),
                                               self.simulation.operator.id)
         
         return []
@@ -85,7 +88,7 @@ class Consumer(Agent):
         
         tomorrow = time.tomorrow()
         load_req = self.load_func(tomorrow) * self.dist_share_func(self, tomorrow)
-        self.simulation.message_dispatcher.send(LoadPrediction(tomorrow, load_req),
+        self.simulation.message_dispatcher.send(LoadPrediction(self, tomorrow, load_req),
                                                 self.simulation.operator.id)
         
         return []
@@ -114,9 +117,10 @@ class AEMOperator(Agent):
             for g in generators:
                 cap = generator_data_gen.get_capacity(g, time)
                 price = generator_data_gen.get_capacity(g, time)
-                bidlist.append(Bid(cap, price * g.markup))
+                bidlist.append(Bid(g, time, cap, price * g.markup))
             self.load_pred_queue.append(load_data_gen.get_load(time))
             time.interval += 1
+            self.pool_queue.append(bidlist)
     
     def process_schedule(self, time):
         self.simulation.log.output("Producing Schedule for %s" % time)
@@ -127,14 +131,19 @@ class AEMOperator(Agent):
         
         dispatched = []
         remaining = load
+        handled = 0
         i = 0
-        while remaining > 0:
+        while remaining > 0 and i < len(bids):
             genned = min(bids[i].watts, remaining)
-            remaining -= bids[i]
+            remaining -= bids[i].watts
+            handled += genned
             dispatched.append((bids[i].sender, genned))
             i += 1
         
-        self.simulation.logger.info("Load: %d, Dispatched %d generators. Interval price: %f" % (load, len(dispatched), bids[i-1].price))
+        if remaining > 0:
+            self.simulation.log.error("Unable to handle load requirements! (produced %d/%dW" % (handled, load))
+        
+        self.simulation.log.info("Load: %d, Dispatched %d generators. Interval price: %f" % (load, len(dispatched), bids[i-1].price))
         self.interval_pricelog.append(bids[i-1])
         #tell generators what tomorrow's load is predicted to be
         for d in dispatched:
