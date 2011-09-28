@@ -29,6 +29,7 @@ class Simulation(object):
         self.agents[self.operator.id] = self.operator
         self.message_dispatcher = MessageDispatcher()
         self.log = Logger()
+        self.end_time = Time(1,0)
     
     def flat_load_dist(self, agent, time):
         cons = 0
@@ -41,20 +42,20 @@ class Simulation(object):
             return 1
     
     def run(self):
-        #while(True):
-        self.step()
-    
-    def step(self):
         t = Time(0,0)
+        while(t.increment() < self.end_time):
+            self.step(t)
+    
+    def step(self, time):
         nextTime = set()
         thisTime = set(self.agents.keys())
         while(len(thisTime) > 0):
             for a in thisTime:
                 if a in nextTime:
                     nextTime.remove(a)
-                nextTime.union(self.agents[a].step(t))
+                nextTime.union(self.agents[a].step(time))
             thisTime = nextTime
-        self.operator.process_schedule(t)
+        self.operator.process_schedule(time)
     
 import logging, sys
     

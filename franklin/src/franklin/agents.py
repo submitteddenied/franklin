@@ -141,10 +141,10 @@ class AEMOperator(Agent):
             i += 1
         
         if remaining > 0:
-            self.simulation.log.error("Unable to handle load requirements! (produced %d/%dW" % (handled, load))
+            self.simulation.log.error("Unable to handle load requirements! (produced %d/%dMW)" % (handled, load))
         
         self.simulation.log.info("Load: %d, Dispatched %d generators. Interval price: %f" % (load, len(dispatched), bids[i-1].price))
-        self.interval_pricelog.append(bids[i-1])
+        self.interval_pricelog.append(bids[i-1].price)
         #tell generators what tomorrow's load is predicted to be
         for d in dispatched:
             self.simulation.log.info(" - Dispatching generator %d for %dMW" % (d[0].id, d[1]))
@@ -153,6 +153,7 @@ class AEMOperator(Agent):
         if time.interval % 6 == 5:
             #calculate the price for the trading period
             period_price = sum(self.interval_pricelog) / 6
+            self.interval_pricelog = []
             self.simulation.log.info("Trading Period %d finished, spot price: %f" % (time.interval / 6, period_price))
             self.pricelog.append((time, period_price))
     
