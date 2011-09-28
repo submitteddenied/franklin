@@ -29,7 +29,7 @@ class Simulation(object):
         self.agents[self.operator.id] = self.operator
         self.message_dispatcher = MessageDispatcher()
         self.log = Logger()
-        self.end_time = Time(1,0)
+        self.end_time = Time(2,0)
     
     def flat_load_dist(self, agent, time):
         cons = 0
@@ -43,8 +43,9 @@ class Simulation(object):
     
     def run(self):
         t = Time(0,0)
-        while(t.increment() < self.end_time):
+        while(t < self.end_time):
             self.step(t)
+            t.increment()
     
     def step(self, time):
         nextTime = set()

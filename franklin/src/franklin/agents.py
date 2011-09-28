@@ -161,10 +161,10 @@ class AEMOperator(Agent):
         messages = self.get_messages()
         self.simulation.log.debug("AEMO %d: I got %d messages!" % (self.id, len(messages)))
         for m in messages:
-            if isinstance(m, GenerationAmendment):
-                self.handle_generation_amendment(m)
-            elif isinstance(m, Bid):
+            if isinstance(m, Bid):
                 self.handle_bid(m)
+            elif isinstance(m, GenerationAmendment):
+                self.handle_generation_amendment(m)
             elif isinstance(m, LoadPrediction):
                 self.handle_load_prediction(m)
             else:
