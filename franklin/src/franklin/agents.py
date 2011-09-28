@@ -116,7 +116,7 @@ class AEMOperator(Agent):
             bidlist = []
             for g in generators:
                 cap = generator_data_gen.get_capacity(g, time)
-                price = generator_data_gen.get_capacity(g, time)
+                price = generator_data_gen.get_cost(g, time)
                 bidlist.append(Bid(g, time, cap, price * g.markup))
             self.load_pred_queue.append(load_data_gen.get_load(time))
             time.interval += 1
