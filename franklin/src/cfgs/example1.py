@@ -2,7 +2,7 @@ import franklin.Generators
 from franklin.monitors import CSVMonitor
 
 '''
-e.g. python.exe main.py -c cfgs/example1
+e.g. python main.py -c cfgs/example1
 '''
 
 config = {

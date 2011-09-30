@@ -16,8 +16,6 @@ class ConfigurationRunner(object):
     def run(self):
         monitor = self.config['monitor']
         for i in range(self.config['runs']):
-            monitor.log_run_start(i)
-            
             end_time = Time(self.config['days'], 0)
             logger = self.config['logger']
             load_gen = self.config['load_gen']
@@ -30,7 +28,7 @@ class ConfigurationRunner(object):
             simulation.run()
             
             #log the run via the monitor
-            monitor.log_run_end(simulation.operator.spot_price_log)
+            monitor.log_run(i, simulation.operator.spot_price_log)
 
 class Simulation(object):
     
