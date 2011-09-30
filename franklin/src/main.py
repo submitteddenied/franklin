@@ -4,76 +4,58 @@ Created on 12/09/2011
 @author: Michael
 '''
 
-import sys
-import optparse
+import sys, optparse
 from franklin.configuration_utilities import ConfigurationUtilities
-from franklin.simulation import Simulation, BatchSimulation
+from franklin.simulation import ConfigurationRunner
 
 def _exit_with_error_list(message, list=None):
     _print_error_list(message, list)
     sys.exit(1)
 
 def _print_error_list(message, list=None):
-    print >> sys.stderr, message
+    print >> sys.stderr, 'ERROR -', message
     if list:
         for item in list:
-            print >> sys.stderr, ' * ', item
+            print >> sys.stderr, ' *', item
 
-if __name__ == '__main__' :
+if __name__ == '__main__' :    
     #parse command line arguments
     parser = optparse.OptionParser()
     parser.add_option('-c', '--config', help='Configuration file to execute.', metavar='FILE')
-    parser.add_option('-b', '--batch', help='Perform a batch run.', action='store_true', default=False)
     parser.add_option('-o', '--optimise', help='Use Psyco optimisation (requires Psyco to be installed).', action='store_true', default=False)
     options, _ = parser.parse_args()
     
+    #load psyco
     if options.optimise:
         try:
+            print 'Loading Psyco...'
             import psyco
             psyco.full()
-            print 'Psyco loaded successfully!'
         except ImportError:
-            print >> sys.stderr, 'Failed to import Psyco.'
+            _print_error_list('Failed to import Psyco.' )
     
     if not options.config:
-        _exit_with_error_list('Cannot proceed - no configuration file specified via --config option.')
+        _exit_with_error_list('No configuration file specified via --config option.')
     
-    config_module = ConfigurationUtilities.load_module('cfgs', options.config)
+    #load config file
+    config_module = ConfigurationUtilities.load_config_module(options.config)
+    
+    print 'Loading config file \'%s\'...' % options.config
     
     if not config_module:
-        _exit_with_error_list('Cannot proceed - specified configuration file does not exist.')
+        _exit_with_error_list('Specified configuration file does not exist.')
     
-    if 'config' not in config_module:
-        _exit_with_error_list('Cannot proceed - no configuration dictionary exists in specified configuration file.')
-       
-    if options.batch and 'batch' not in config_module:
-        _exit_with_error_list('Cannot proceed with batch run - no batch dictionary exists in specified configuration file.')
-    
-    print 'Parsing \'%s\' configuration dictionary...' % options.config
-    critical_errors, non_critical_errors = ConfigurationUtilities.parse_config(config_module['config'])
+    critical_errors, non_critical_errors = ConfigurationUtilities.validate_config_module(config_module)
     
     if len(critical_errors) > 0:
-        _exit_with_error_list('Cannot proceed - the following critical errors were encountered:', critical_errors)
+        _exit_with_error_list('The following critical errors were encountered:', critical_errors)
     
     if len(non_critical_errors) > 0:
         _print_error_list('The following non-critical errors were encountered:', non_critical_errors)
     
-    simulation = None
-    if options.batch:
-        print 'Parsing \'%s\' batch dictionary...' % options.config
-        critical_errors, non_critical_errors = ConfigurationUtilities.parse_batch_config(config_module['batch'])
-        
-        if len(critical_errors) > 0:
-            _exit_with_error_list('Cannot proceed - the following critical errors were encountered:', critical_errors)
-        
-        if len(non_critical_errors) > 0:
-            _print_error_list('The following non-critical errors were encountered:', non_critical_errors)
-        
-        simulation = BatchSimulation(config_module['config'], config_module['batch'])
-    else:
-        simulation = Simulation(config_module['config'])
-    
     #run the simulation
     print 'Starting simulation...'
-    simulation.run()
+    config_runner = ConfigurationRunner(config_module['config'])
+    config_runner.run()
+    
     

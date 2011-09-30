@@ -7,7 +7,7 @@ Created on 12/09/2011
 class MessageDispatcher(object):
     def __init__(self):
         '''
-        Constructs a new MessageDispatch
+        Constructs a new MessageDispatcher
         '''
         #maps ids -> message[]
         self.inboxes = {}
@@ -34,6 +34,12 @@ class MessageDispatcher(object):
             self.inboxes[id] = []
         
         self.inboxes[id].append(message)
+    
+    def reset(self):
+        '''
+        Resets the state of the MessageDispatcher.
+        '''
+        self.inboxes.clear()
 
 class Message(object):
     '''

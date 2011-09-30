@@ -8,48 +8,49 @@ from message import MessageDispatcher
 from time import Time
 from agents import *
 
-class BatchSimulation(object):
-    
-    def __init__(self, config, batch_config):
-        self.simulation_config = config
-        self.run_limit = batch_config['run_limit']
-        
-    def run(self):
-        run = 0
-        while(run < self.run_limit):
-            self.step()
-            run += 1
-   
-    def step(self):
-        simulation = Simulation(self.simulation_config)
-        simulation.run()
-
-class Simulation(object):
-    '''
-    classdocs
-    '''
+class ConfigurationRunner(object):
     
     def __init__(self, config):
-        '''
-        Constructor
-        '''
-        self.log = config['logger']
-        self.end_time = Time(config['day_limit'], 0)
-        load_gen = config['load_gen']
-        capacity_gen = config['capacity_gen']
+        self.config = config
+    
+    def run(self):
+        monitor = self.config['monitor']
+        for i in range(self.config['runs']):
+            monitor.log_run_start(i)
+            
+            end_time = Time(self.config['days'], 0)
+            logger = self.config['logger']
+            load_gen = self.config['load_gen']
+            capacity_gen = self.config['capacity_gen']
+            max_generators = self.config['max_generators']
+            max_consumers = self.config['max_consumers']
+            
+            #run a simulation
+            simulation = Simulation(logger, monitor, end_time, load_gen, capacity_gen, max_generators, max_consumers)
+            simulation.run()
+            
+            #log the run via the monitor
+            monitor.log_run_end(simulation.operator.spot_price_log)
+
+class Simulation(object):
+    
+    def __init__(self, logger, monitor, end_time, load_gen, capacity_gen, max_generators, max_consumers):
+        self.message_dispatcher = MessageDispatcher()
+        self.end_time = end_time
+        self.log = logger
+        self.monitor = monitor
         generators = {}
-        for i in range(config['max_generators']):
+        for i in range(max_generators):
             id = 'Generator %d' % (i+1)
             generators[id] = Generator(id, self, capacity_gen)
         consumers = {}
-        for i in range(config['max_consumers']):
+        for i in range(max_consumers):
             id = 'Consumer %d' % (i+1)
             consumers[id] = Consumer(id, self, load_gen.get_load, self.flat_load_dist)
+        self.agents = dict(generators.items() + consumers.items())
         self.operator = AEMOperator('AEMO', self, load_gen.get_load)
         self.operator.initialise(generators.values(), capacity_gen, load_gen)
-        self.agents = dict(generators.items() + consumers.items())
         self.agents[self.operator.id] = self.operator
-        self.message_dispatcher = MessageDispatcher()
     
     def flat_load_dist(self, agent, time):
         cons = 0
@@ -63,9 +64,9 @@ class Simulation(object):
     
     def run(self):
         t = Time(0,0)
-        while(t < self.end_time):
+        while t < self.end_time:
             self.step(t)
-            t.increment()
+            t = t.increment()
     
     def step(self, time):
         nextTime = set()

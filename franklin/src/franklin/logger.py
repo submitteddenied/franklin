@@ -1,4 +1,4 @@
-import logging, sys
+import sys, logging
     
 class Logger(object):
     '''Performs logging!'''
@@ -30,3 +30,5 @@ class Logger(object):
                 self._logline(l)
         else:
             self._logline(lines)
+    
+        

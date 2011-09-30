@@ -2,9 +2,10 @@
 This module contains Franklin's agents.
 '''
 
+from copy import copy
+from collections import deque
 from message import GenerationAmendment, LoadPrediction, Bid, Dispatch
 from time import Time
-from collections import deque
 
 INTERVALS_PER_DAY = 24 * 2 * 6;
 
@@ -106,9 +107,8 @@ class AEMOperator(Agent):
         self.load_pred_queue = deque()
         self.load = {}
         self.load_func = load_func
-        self.interval_pricelog = []
-        self.pricelog = []
-        
+        self.interval_price_log = []
+        self.spot_price_log = []
         
     def initialise(self, generators, generator_data_gen, load_data_gen):
         time = Time(0, 0)
@@ -131,20 +131,20 @@ class AEMOperator(Agent):
         
         dispatched = []
         remaining = load
-        handled = 0
+        load_handled = 0
         i = 0
         while remaining > 0 and i < len(bids):
             genned = min(bids[i].watts, remaining)
             remaining -= bids[i].watts
-            handled += genned
+            load_handled += genned
             dispatched.append((bids[i].sender, genned))
             i += 1
         
         if remaining > 0:
-            self.simulation.log.error("Unable to handle load requirements! (produced %d/%dMW)" % (handled, load))
+            self.simulation.log.error("Unable to handle load requirements! (produced %d/%dMW)" % (load_handled, load))
         
         self.simulation.log.info("Load: %d, Dispatched %d generators. Interval price: %f" % (load, len(dispatched), bids[i-1].price))
-        self.interval_pricelog.append(bids[i-1].price)
+        self.interval_price_log.append(bids[i-1].price)
         #tell generators what tomorrow's load is predicted to be
         for d in dispatched:
             self.simulation.log.info(" - Dispatching %s for %dMW" % (d[0].id, d[1]))
@@ -152,10 +152,10 @@ class AEMOperator(Agent):
         
         if time.interval % 6 == 5:
             #calculate the price for the trading period
-            period_price = sum(self.interval_pricelog) / 6
-            self.interval_pricelog = []
-            self.simulation.log.info("Trading Period %d finished, spot price: %f" % (time.interval / 6, period_price))
-            self.pricelog.append((time, period_price))
+            spot_price = sum(self.interval_price_log) / 6
+            self.interval_price_log = [] #clear for next trading period
+            self.simulation.log.info("Trading Period %d finished, spot price: %f" % (time.interval / 6, spot_price))
+            self.spot_price_log.append((copy(time), spot_price))
     
     def step(self, time):
         messages = self.get_messages()
