@@ -24,7 +24,16 @@ if __name__ == '__main__' :
     parser = optparse.OptionParser()
     parser.add_option('-c', '--config', help='Configuration file to execute.', metavar='FILE')
     parser.add_option('-b', '--batch', help='Perform a batch run.', action='store_true', default=False)
+    parser.add_option('-o', '--optimise', help='Use Psyco optimisation (requires Psyco to be installed).', action='store_true', default=False)
     options, _ = parser.parse_args()
+    
+    if options.optimise:
+        try:
+            import psyco
+            psyco.full()
+            print 'Psyco loaded successfully!'
+        except ImportError:
+            print >> sys.stderr, 'Failed to import Psyco.'
     
     if not options.config:
         _exit_with_error_list('Cannot proceed - no configuration file specified via --config option.')
