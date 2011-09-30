@@ -53,7 +53,7 @@ class Generator(Agent):
         itself) to run their step again in this time interval.
         ''' 
         messages = self.get_messages()
-        self.simulation.log.debug("Generator %d: I got %d messages!" % (self.id, len(messages)))
+        self.simulation.log.debug("%s: I got %d messages!" % (self.id, len(messages)))
         price = self.data_gen.get_cost(self, time.tomorrow()) * self.markup
         self.simulation.message_dispatcher.send(Bid(self,
                                                     time.tomorrow(), 
@@ -84,7 +84,7 @@ class Consumer(Agent):
         itself) to run their step again in this time interval.
         ''' 
         messages = self.get_messages()
-        self.simulation.log.debug("Consumer %d: I got %d messages!" % (self.id, len(messages)))
+        self.simulation.log.debug("%s: I got %d messages!" % (self.id, len(messages)))
         
         tomorrow = time.tomorrow()
         load_req = self.load_func(tomorrow) * self.dist_share_func(self, tomorrow)
@@ -147,7 +147,7 @@ class AEMOperator(Agent):
         self.interval_pricelog.append(bids[i-1].price)
         #tell generators what tomorrow's load is predicted to be
         for d in dispatched:
-            self.simulation.log.info(" - Dispatching generator %d for %dMW" % (d[0].id, d[1]))
+            self.simulation.log.info(" - Dispatching %s for %dMW" % (d[0].id, d[1]))
             self.simulation.message_dispatcher.send(Dispatch(self, time, d[1]), d[0].id)
         
         if time.interval % 6 == 5:
@@ -159,7 +159,7 @@ class AEMOperator(Agent):
     
     def step(self, time):
         messages = self.get_messages()
-        self.simulation.log.debug("AEMO %d: I got %d messages!" % (self.id, len(messages)))
+        self.simulation.log.debug("%s: I got %d messages!" % (self.id, len(messages)))
         for m in messages:
             if isinstance(m, Bid):
                 self.handle_bid(m)
@@ -169,7 +169,7 @@ class AEMOperator(Agent):
                 self.handle_load_prediction(m)
             else:
                 #unrecognised!
-                self.simulation.log.warning("AEMO received unknown message type, " + type(m))
+                self.simulation.log.warning("%s received unknown message type, " % (self.id) + type(m))
             
         return []
     

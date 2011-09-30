@@ -4,18 +4,24 @@ Created on 22/09/2011
 @author: mjensen
 '''
 
-class MathLoadGenerator(object):
+class LoadGenerator(object):
+    def get_capacity(self, generator, time):
+        pass
+    
+    def get_load(self, time):
+        pass
+
+class MathLoadGenerator(LoadGenerator):
     '''
     This class uses mathematical functions to generate load data.
     '''
-    
     def __init__(self):
-        self.funcs = [self.base_load, self.peaks]
+        self.funcs = [self._base_load, self._peaks]
     
-    def base_load(self, time):
+    def _base_load(self, time):
         return 4000
     
-    def peaks(self, time):
+    def _peaks(self, time):
         '''
         Using formula -.22(x-192)^2+2000 to get a rough approximation of a peak in the day
         See http://fooplot.com/index.php?q0=-.22%28x-192%29^2+2000
@@ -31,8 +37,15 @@ class MathLoadGenerator(object):
             result += func(time)
         
         return result
+
+class CapacityGenerator(object):
+    def get_capacity(self, generator, time):
+        pass
     
-class StaticGenerationCapacityGenerator(object):
+    def get_cost(self, generator, time):
+        pass
+
+class StaticGenerationCapacityGenerator(CapacityGenerator):
     '''
     This class just spits out flat data for generators to use.
     It does introduce some randomness for the price calculation.
