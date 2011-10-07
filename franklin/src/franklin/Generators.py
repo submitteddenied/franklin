@@ -38,6 +38,20 @@ class MathLoadGenerator(LoadGenerator):
         
         return result
 
+class RandomLoadGenerator(LoadGenerator):
+    '''
+    This class generates random load data within a specified range.
+    '''
+    def __init__(self, min_load, max_load, seed=0):
+        import random
+        self.rand = random.Random()
+        self.rand.seed(seed)
+        self.min_load = min_load
+        self.max_load = max_load
+    
+    def get_load(self, time):
+        return self.rand.uniform(self.min_load, self.max_load)
+
 class CapacityGenerator(object):
     def get_capacity(self, generator, time):
         pass

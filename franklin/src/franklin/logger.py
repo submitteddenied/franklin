@@ -4,7 +4,7 @@ class Logger(object):
     '''Performs logging!'''
     
     def __init__(self):
-        logging.basicConfig(file=sys.stdout,level=logging.DEBUG, format='%(asctime)s %(message)s')
+        logging.basicConfig(file=sys.stdout,level=logging.DEBUG, format='%(message)s')
     
     def debug(self, msg):
         logging.debug(msg)
