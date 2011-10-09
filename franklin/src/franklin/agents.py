@@ -15,7 +15,7 @@ class Agent(object):
     This is an *abstract* class.
     '''
 
-    def __init__(self, id, simulation):
+    def __init__(self, id, simulation, region):
         '''
         Constructs a new "agent" with the given simulation.
         Note that you shouldn't call Agent(sim), you should use
@@ -23,6 +23,7 @@ class Agent(object):
         '''
         self.simulation = simulation
         self.id = id
+        self.region = region
         
     def step(self, time):
         '''
@@ -39,8 +40,8 @@ class Generator(Agent):
     power to the NEM and makes money per MWh generated
     '''
     
-    def __init__(self, id, simulation, data_generator):
-        super(Generator, self).__init__(id, simulation)
+    def __init__(self, id, simulation, data_generator, region):
+        super(Generator, self).__init__(id, simulation, region)
         self.data_gen = data_generator
         self.markup = 1.1
     
@@ -60,7 +61,7 @@ class Generator(Agent):
                                                     time.tomorrow(), 
                                                     self.data_gen.get_capacity(self, time.tomorrow()), 
                                                     price),
-                                              self.simulation.operator.id)
+                                              self.simulation.operators[self.region].id)
         
         return []
     
@@ -70,8 +71,8 @@ class Consumer(Agent):
     reports (predicted) load data to AEMO
     '''
     
-    def __init__(self, id, simulation, load_func, dist_share_func):
-        super(Consumer, self).__init__(id, simulation)
+    def __init__(self, id, simulation, load_func, dist_share_func, region):
+        super(Consumer, self).__init__(id, simulation, region)
         self.load_func = load_func
         self.dist_share_func = dist_share_func
         
@@ -90,7 +91,7 @@ class Consumer(Agent):
         tomorrow = time.tomorrow()
         load_req = self.load_func(tomorrow) * self.dist_share_func(self, tomorrow)
         self.simulation.message_dispatcher.send(LoadPrediction(self, tomorrow, load_req),
-                                                self.simulation.operator.id)
+                                                self.simulation.operators[self.region].id)
         
         return []
 
@@ -101,18 +102,17 @@ class AEMOperator(Agent):
     cost schedule.
     '''
     
-    def __init__(self, id, simulation, load_func):
-        super(AEMOperator, self).__init__(id, simulation)
+    def __init__(self, id, simulation, region):
+        super(AEMOperator, self).__init__(id, simulation, region)
         self.pool_queue = deque()
         self.load_pred_queue = deque()
         self.load = {}
-        self.load_func = load_func
         self.interval_price_log = []
         self.spot_price_log = []
         
     def initialise(self, generators, generator_data_gen, load_data_gen):
         time = Time(0, 0)
-        for i in range(288):
+        for i in range(288): #@UnusedVariable
             bidlist = []
             for g in generators:
                 cap = generator_data_gen.get_capacity(g, time)
@@ -125,7 +125,7 @@ class AEMOperator(Agent):
     def process_schedule(self, time):
         self.simulation.log.output("Producing Schedule for %s" % time)
         #send load dispatch messages (probably just log them)
-        load = self.load_func(time)
+        load = self.load_pred_queue.popleft()
         bids = self.pool_queue.popleft()
         bids.sort(key=lambda b: b.price)
         

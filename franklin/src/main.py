@@ -57,5 +57,5 @@ if __name__ == '__main__' :
     print 'Starting simulation...'
     config_runner = ConfigurationRunner(config_module['config'])
     config_runner.run()
-    
+    print ' ...Complete'
     

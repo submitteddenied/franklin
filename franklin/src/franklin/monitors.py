@@ -28,11 +28,12 @@ class CSVMonitor(Monitor):
         f.close()
     '''
     
-    def log_run(self, run_no, spot_price_log):
+    def log_run(self, run_no, spot_price_log, region=""):
         f = open(self.filepath, 'a') #FIXME: not efficient
         f.write('run,%d\n' % run_no)
-        f.write('day,interval,spot_price\n')
+        f.write('day,interval,spot_price,region\n')
         for time,spot_price in spot_price_log:
-            f.write('%d,%d,%f\n' % (time.day, time.interval, spot_price))
+            #FIXME: inefficient to log region on every line
+            f.write('%d,%d,%f,%s\n' % (time.day, time.interval, spot_price, region))
         f.close()
         

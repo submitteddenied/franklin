@@ -8,7 +8,7 @@ import os
 import sys
 from franklin.logger import Logger
 from franklin.monitors import Monitor, CSVMonitor
-from franklin.Generators import LoadGenerator, CapacityGenerator
+from franklin.Generators import LoadGenerator, CapacityGenerator, DataProvider
 
 CONFIG_SYNTAX = {
     'runs': {
@@ -19,11 +19,11 @@ CONFIG_SYNTAX = {
         'validator': lambda x: type(x) is int and x > 0,
         'default': 1,
     },
-    'max_generators': {
-        'validator': lambda x: type(x) is int and x > 0,
+    'generators': {
+        'validator': lambda x: type(x) is list and len(x) > 0,
     },
-    'max_consumers': {
-        'validator': lambda x: type(x) is int and x > 0,
+    'consumers': {
+        'validator': lambda x: type(x) is list and len(x) > 0,
     },
     'logger': {
         'validator': lambda x: isinstance(x, Logger),
@@ -31,9 +31,24 @@ CONFIG_SYNTAX = {
     },
     'load_gen': {
         'validator': lambda x: isinstance(x, LoadGenerator),
+        'deprecated': True,
+        'default': None
     },
     'capacity_gen': {
         'validator': lambda x: isinstance(x, CapacityGenerator),
+        'deprecated': True,
+        'default': None
+    },
+    'regions': {
+        'validator': lambda x: type(x) is list,
+        'default': ["VIC"]
+    },
+    'data_providers': {
+        #oh holy hell this is messy, first map everything in the list of providers
+        #to a true/false value by calling isinstance(c, DataProvider). This yields
+        #a list of true/false. Then reduce the list using an "and" so the result will
+        #be true if they're all DataProviders. Trust me. -MJ
+        'validator': lambda x: reduce(lambda a, b: a and b, map(lambda c: isinstance(c, DataProvider), x)), 
     },
     'monitor': {
         'validator': lambda x: isinstance(x, Monitor),
@@ -58,6 +73,8 @@ class ConfigurationUtilities(object):
                 if key in dictionary:
                     #raise an error if the value of the key is invalid
                     value = dictionary[key]
+                    if syntax[key].has_key('deprecated') and syntax[key]['deprecated']:
+                        non_critical_errors.append('Deprecated %s dictionary key \'%s\'.' % (dictionary_name, key))
                     if not syntax[key]['validator'](value):
                         critical_errors.append('Invalid value \'%s\' specified for %s dictionary key \'%s\'.' % (value, dictionary_name, key))
                     unrecognised_keys.remove(key)

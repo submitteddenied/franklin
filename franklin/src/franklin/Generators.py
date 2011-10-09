@@ -3,6 +3,10 @@ Created on 22/09/2011
 
 @author: mjensen
 '''
+from collections import namedtuple
+from time import Time
+
+DataProvider = namedtuple("DataProvider", ['load_gen', 'capacity_gen'])
 
 class LoadGenerator(object):
     def get_capacity(self, generator, time):
@@ -67,3 +71,52 @@ class StaticGenerationCapacityGenerator(CapacityGenerator):
         Returns $32.50 plus/minus some random perturbation
         '''
         return 32.5 + self.rand.uniform(-10, 10)
+    
+class CSVLoadGenerator(LoadGenerator):
+    '''
+    CSV Load Generator reads in a file from the AEMO website to provide load data.
+    The file must be in CSV format and contain the following columns:
+     - REGION
+     - SETTLEMENTDATE (in YYYY/MM/DD HH:mm:ss format)
+     - TOTALDEMAND
+     - RRP
+     - PERIODTYPE
+    
+    The file must also contain a header row (which will be ignored)
+    
+    Note that the "SettlementDate" field is (at this time) ignored entirely. The
+    first row in the file is treated as time Time(0, 0)
+    '''
+    
+    DataRow = namedtuple('DataRow', ['region', 'settlementdate', 'total_demand', 'rrp', 'period_type'])
+    
+    def __init__(self, file):
+        '''
+        Constructs a CSV Load generator. The 'file' argument is the path to a 
+        file that contains CSV data.
+        '''
+        self.file_location = file
+        self.data = {}
+        self.last_time = None
+        self._parse_file()
+    
+    def _parse_file(self):
+        '''
+        Reads the given file into a map that will allow an agent to query for
+        the total load at the given time.
+        '''
+        with open(self.file_location, 'r') as file:
+            rows = file.read().split('\n')
+            t = Time(0, 0)
+            for row in rows[1:]:
+                row_arr = row.split(',')
+                self.data[str(t)] = self.DataRow(*row_arr)
+                self.last_time = t
+                t = t.next()
+    
+    def get_load(self, time):
+        if self.last_time is None:
+            raise Exception("Data not initialised!")
+        elif time > self.last_time:
+            raise Exception("Not enough data in the file!")
+        return float(self.data[str(time)].total_demand)
