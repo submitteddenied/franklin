@@ -27,12 +27,24 @@ class Time(object):
         return Time(self.day + 1, self.interval)
     
     def increment(self):
+        '''
+        Moves this time object to the next time step. If you want to get a
+        different object with the next time step, use next().
+        '''
         self.interval += 1
-        if self.interval > INTERVALS_IN_DAY:
+        if self.interval >= INTERVALS_IN_DAY:
             self.interval = 0
             self.day += 1
             
         return self
+    
+    def next(self):
+        '''
+        Does the same thing as Time.increment() except returns a copy of this
+        time object, incremented - rather than incrementing this time.
+        '''
+        result = Time(self.day, self.interval)
+        return result.increment()
     
     def __str__(self):
         return "<Day: %d, Interval: %d>" % (self.day, self.interval)
