@@ -40,10 +40,10 @@ class Generator(Agent):
     power to the NEM and makes money per MWh generated
     '''
     
-    def __init__(self, id, simulation, data_generator, region):
+    def __init__(self, id, simulation, data_generator, region, markup=1.1):
         super(Generator, self).__init__(id, simulation, region)
         self.data_gen = data_generator
-        self.markup = 1.1
+        self.markup = markup
     
     def step(self, time):
         '''

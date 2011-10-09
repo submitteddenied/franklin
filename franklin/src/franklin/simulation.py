@@ -14,17 +14,17 @@ class ConfigurationRunner(object):
         self.config = config
     
     def run(self):
+        logger = self.config['logger']
         monitor = self.config['monitor']
+        end_time = Time(self.config['days'], 0)
+        events = self.config['events']
+        regions = self.config['regions']
+        data_providers = self.config['data_providers']
+        generators = self.config['generators']
+        consumers = self.config['consumers']
         for i in range(self.config['runs']):
-            end_time = Time(self.config['days'], 0)
-            logger = self.config['logger']
-            regions = self.config['regions']
-            data_providers = self.config['data_providers']
-            generators = self.config['generators']
-            consumers = self.config['consumers']
-            
             #run a simulation
-            simulation = Simulation(logger, monitor, end_time, regions, data_providers, generators, consumers)
+            simulation = Simulation(logger, monitor, end_time, events, regions, data_providers, generators, consumers)
             simulation.run()
             
             #log the run via the monitor
@@ -37,7 +37,7 @@ class Simulation(object):
     The Simulation object contains the logic for running a simulation.
     '''
     
-    def __init__(self, logger, monitor, end_time, regions, 
+    def __init__(self, logger, monitor, end_time, events, regions, 
                  data_provider, generators, consumers):
         '''
         The Simulation Constructor takes the following arguments:
@@ -45,6 +45,8 @@ class Simulation(object):
          - monitor: a data monitor object
          - end_time: The end (and therefore length) of a simulation. Simulations
                      always start at Time(0,0)
+         - events: A list of events that will be used to modify the simulation while it
+           is running.
          - regions: A list of region names
          - data_provider: a list of the same length as regions of the same of 
                      objects with .load_gen and .capacity_gen, each of which
@@ -55,9 +57,9 @@ class Simulation(object):
                          of consumers for each region
         '''
         self.message_dispatcher = MessageDispatcher()
-        self.end_time = end_time
         self.log = logger
         self.monitor = monitor
+        self.event_stack = sorted(events, key=lambda event: event.time, reverse=True)
         generator_dict = {}
         consumer_dict = {}
         self.operators = {}
@@ -78,6 +80,7 @@ class Simulation(object):
                                          data_provider[i].load_gen)
             
         self.agents = dict(generator_dict.items() + consumer_dict.items() + self.operators.items())
+        self.end_time = end_time
     
     def flat_load_dist(self, agent, time):
         cons = 0
@@ -96,6 +99,15 @@ class Simulation(object):
             t = t.increment()
     
     def step(self, time):
+        self.log.info(time)
+        
+        #process events
+        while len(self.event_stack) > 0 and self.event_stack[-1].time == time:
+            event = self.event_stack.pop()
+            event.process_event(self)
+            self.log.info("Processed event: %s" % event)
+        
+        #process agent communications
         nextTime = set()
         thisTime = set(self.agents.keys())
         while(len(thisTime) > 0):
@@ -104,5 +116,6 @@ class Simulation(object):
                     nextTime.remove(a)
                 nextTime.union(self.agents[a].step(time))
             thisTime = nextTime
+        
         for operator in self.operators.values():
             operator.process_schedule(time)

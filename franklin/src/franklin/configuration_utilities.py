@@ -9,6 +9,7 @@ import sys
 from franklin.logger import Logger
 from franklin.monitors import Monitor, CSVMonitor
 from franklin.Generators import LoadGenerator, CapacityGenerator, DataProvider
+from franklin.events import SimulationEvent
 
 CONFIG_SYNTAX = {
     'runs': {
@@ -53,6 +54,10 @@ CONFIG_SYNTAX = {
     'monitor': {
         'validator': lambda x: isinstance(x, Monitor),
     },
+    'events': {
+        'validator': lambda x: reduce(lambda a, b: a and b, map(lambda c: isinstance(c, SimulationEvent), x)),
+        'default': [],
+    },
 }
 
 class ConfigurationUtilities(object):
@@ -71,11 +76,11 @@ class ConfigurationUtilities(object):
             unrecognised_keys = dictionary.keys()
             for key in syntax.keys():
                 if key in dictionary:
-                    #raise an error if the value of the key is invalid
+                    #raise an error if the value of the key is not specified or invalid
                     value = dictionary[key]
                     if syntax[key].has_key('deprecated') and syntax[key]['deprecated']:
                         non_critical_errors.append('Deprecated %s dictionary key \'%s\'.' % (dictionary_name, key))
-                    if not syntax[key]['validator'](value):
+                    if value is None or not syntax[key]['validator'](value):
                         critical_errors.append('Invalid value \'%s\' specified for %s dictionary key \'%s\'.' % (value, dictionary_name, key))
                     unrecognised_keys.remove(key)
                 else:
