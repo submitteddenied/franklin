@@ -6,16 +6,16 @@ Created on 22/09/2011
 from collections import namedtuple
 from time import Time
 
-DataProvider = namedtuple("DataProvider", ['load_gen', 'capacity_gen'])
+DataProvider = namedtuple("DataProvider", ['load_data_gen', 'capacity_data_gen'])
 
-class LoadGenerator(object):
+class LoadDataGenerator(object):
     def get_capacity(self, generator, time):
         pass
     
     def get_load(self, time):
         pass
 
-class MathLoadGenerator(LoadGenerator):
+class MathLoadDataGenerator(LoadDataGenerator):
     '''
     This class uses mathematical functions to generate load data.
     '''
@@ -42,11 +42,12 @@ class MathLoadGenerator(LoadGenerator):
         
         return result
 
-class RandomLoadGenerator(LoadGenerator):
+class RandomLoadDataGenerator(LoadDataGenerator):
     '''
     This class generates random load data within a specified range.
     '''
     def __init__(self, min_load, max_load, seed=0):
+        assert 0 <= min_load < max_load
         import random
         self.rand = random.Random()
         self.rand.seed(seed)
@@ -56,20 +57,20 @@ class RandomLoadGenerator(LoadGenerator):
     def get_load(self, time):
         return self.rand.uniform(self.min_load, self.max_load)
 
-class CapacityGenerator(object):
+class CapacityDataGenerator(object):
     def get_capacity(self, generator, time):
         pass
     
     def get_cost(self, generator, time):
         pass
 
-class StaticGenerationCapacityGenerator(CapacityGenerator):
+class StaticCapacityDataGenerator(CapacityDataGenerator):
     '''
     This class just spits out flat data for generators to use.
     It does introduce some randomness for the price calculation.
     '''
     
-    def __init__(self, seed=9487239147):
+    def __init__(self, seed=0):
         import random
         self.rand = random.Random()
         self.rand.seed(seed)
@@ -85,10 +86,31 @@ class StaticGenerationCapacityGenerator(CapacityGenerator):
         Returns $32.50 plus/minus some random perturbation
         '''
         return 32.5 + self.rand.uniform(-10, 10)
-    
-class CSVLoadGenerator(LoadGenerator):
+
+class RandomCapacityDataGenerator(CapacityDataGenerator):
     '''
-    CSV Load Generator reads in a file from the AEMO website to provide load data.
+    This class generates random capacity data within a specified range.
+    '''
+    def __init__(self, min_capacity, max_capacity, min_cost, max_cost, seed=0):
+        assert 0 <= min_capacity < max_capacity
+        assert 0 <= min_cost < max_cost
+        import random
+        self.rand = random.Random()
+        self.rand.seed(seed)
+        self.min_capacity = min_capacity
+        self.max_capacity = max_capacity
+        self.min_cost = min_cost
+        self.max_cost = max_cost
+    
+    def get_capacity(self, generator, time):
+        return self.rand.uniform(self.min_capacity, self.max_capacity)
+    
+    def get_cost(self, generator, time):
+        return self.rand.uniform(self.min_cost, self.max_cost)
+
+class CSVLoadDataGenerator(LoadDataGenerator):
+    '''
+    CSV Load Data Generator reads in a file from the AEMO website to provide load data.
     The file must be in CSV format and contain the following columns:
      - REGION
      - SETTLEMENTDATE (in YYYY/MM/DD HH:mm:ss format)

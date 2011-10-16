@@ -7,7 +7,7 @@ from collections import deque
 from message import GenerationAmendment, LoadPrediction, Bid, Dispatch
 from time import Time
 
-INTERVALS_PER_DAY = 24 * 2 * 6;
+INTERVALS_PER_DAY = 24 * 2 * 6
 
 class Agent(object):
     '''
@@ -40,9 +40,15 @@ class Generator(Agent):
     power to the NEM and makes money per MWh generated
     '''
     
-    def __init__(self, id, simulation, data_generator, region, markup=1.1):
+    COAL_TYPE = 'Coal'
+    WIND_TYPE = 'Wind'
+    HYDROELECTRIC_TYPE = 'Hydro'
+    NUCLEAR_TYPE = 'Nuclear'
+    
+    def __init__(self, id, type, simulation, capacity_data_gen, region, markup=1.1):
         super(Generator, self).__init__(id, simulation, region)
-        self.data_gen = data_generator
+        self.type = type
+        self.capacity_data_gen = capacity_data_gen
         self.markup = markup
     
     def step(self, time):
@@ -56,15 +62,15 @@ class Generator(Agent):
         ''' 
         messages = self.get_messages()
         self.simulation.log.debug("%s: I got %d messages!" % (self.id, len(messages)))
-        price = self.data_gen.get_cost(self, time.tomorrow()) * self.markup
+        price = self.capacity_data_gen.get_cost(self, time.tomorrow()) * self.markup
         self.simulation.message_dispatcher.send(Bid(self,
                                                     time.tomorrow(), 
-                                                    self.data_gen.get_capacity(self, time.tomorrow()), 
+                                                    self.capacity_data_gen.get_capacity(self, time.tomorrow()), 
                                                     price),
                                               self.simulation.operators[self.region].id)
         
         return []
-    
+
 class Consumer(Agent):
     '''
     Represents an electrical consumer, which consumes power from the grid and
@@ -110,13 +116,13 @@ class AEMOperator(Agent):
         self.interval_price_log = []
         self.spot_price_log = []
         
-    def initialise(self, generators, generator_data_gen, load_data_gen):
+    def initialise(self, generators, capacity_data_gen, load_data_gen):
         time = Time(0, 0)
         for i in range(288): #@UnusedVariable
             bidlist = []
             for g in generators:
-                cap = generator_data_gen.get_capacity(g, time)
-                price = generator_data_gen.get_cost(g, time)
+                cap = capacity_data_gen.get_capacity(g, time)
+                price = capacity_data_gen.get_cost(g, time)
                 bidlist.append(Bid(g, time, cap, price * g.markup))
             self.load_pred_queue.append(load_data_gen.get_load(time))
             time.interval += 1
@@ -147,7 +153,7 @@ class AEMOperator(Agent):
         self.interval_price_log.append(bids[i-1].price)
         #tell generators what tomorrow's load is predicted to be
         for d in dispatched:
-            self.simulation.log.info(" - Dispatching %s for %dMW" % (d[0].id, d[1]))
+            self.simulation.log.info(" - Dispatching %s (%s) for %dMW" % (d[0].id, d[0].type, d[1]))
             self.simulation.message_dispatcher.send(Dispatch(self, time, d[1]), d[0].id)
         
         if time.interval % 6 == 5:
@@ -185,4 +191,3 @@ class AEMOperator(Agent):
         if len(self.load_pred_queue) < INTERVALS_PER_DAY:
             self.load_pred_queue.append(0)
         self.load_pred_queue[-1] += prediction.watts
-        

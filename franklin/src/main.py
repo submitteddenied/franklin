@@ -5,8 +5,9 @@ Created on 12/09/2011
 '''
 
 import sys, optparse
-from franklin.configuration_utilities import ConfigurationUtilities
-from franklin.simulation import ConfigurationRunner
+from franklin import configuration_utilities
+from franklin.time import Time
+from franklin.simulation import Simulation
 
 def _exit_with_error_list(message, list=None):
     _print_error_list(message, list)
@@ -17,6 +18,32 @@ def _print_error_list(message, list=None):
     if list:
         for item in list:
             print >> sys.stderr, ' *', item
+
+def run_config(config):
+    '''Executes simulation runs for a specified config dictionary (assuming the config is valid).'''
+    
+    logger = config['logger']
+    monitor = config['monitor']
+    end_time = Time(config['days'], 0)
+    events = config['events']
+    regions = config['regions']
+    data_providers = config['data_providers']
+    generators = config['generators']
+    consumers = config['consumers']
+    runs = config['runs']
+    
+    print 'Starting...'
+    for run_no in range(runs):
+        print 'Conducting run #%d...' % (run_no + 1)
+        
+        #run a simulation
+        simulation = Simulation(logger, monitor, end_time, events, regions, data_providers, generators, consumers)
+        simulation.run()
+        
+        #log the run via the monitor
+        for region, operator in simulation.operators.items():
+            monitor.log_run(run_no, operator.spot_price_log, region)
+    print ' ...Complete'
 
 if __name__ == '__main__' :    
     #parse command line arguments
@@ -38,14 +65,14 @@ if __name__ == '__main__' :
         _exit_with_error_list('No configuration file specified via --config option.')
     
     #load config file
-    config_module = ConfigurationUtilities.load_config_module(options.config)
+    config_module = configuration_utilities.load_config_module(options.config)
     
     print 'Loading config file \'%s\'...' % options.config
     
     if not config_module:
         _exit_with_error_list('Specified configuration file does not exist.')
     
-    critical_errors, non_critical_errors = ConfigurationUtilities.validate_config_module(config_module)
+    critical_errors, non_critical_errors = configuration_utilities.validate_config_module(config_module)
     
     if len(critical_errors) > 0:
         _exit_with_error_list('The following critical errors were encountered:', critical_errors)
@@ -53,9 +80,5 @@ if __name__ == '__main__' :
     if len(non_critical_errors) > 0:
         _print_error_list('The following non-critical errors were encountered:', non_critical_errors)
     
-    #run the simulation
-    print 'Starting simulation...'
-    config_runner = ConfigurationRunner(config_module['config'])
-    config_runner.run()
-    print ' ...Complete'
-    
+    #run the configuration
+    run_config(config_module['config'])
