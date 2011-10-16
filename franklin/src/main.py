@@ -50,9 +50,10 @@ if __name__ == '__main__' :
     parser = optparse.OptionParser()
     parser.add_option('-c', '--config', help='Configuration file to execute.', metavar='FILE')
     parser.add_option('-o', '--optimise', help='Use Psyco optimisation (requires Psyco to be installed).', action='store_true', default=False)
+    parser.add_option('-p', '--profile', help='Use cProfile profiling.', action='store_true', default=False)
     options, _ = parser.parse_args()
     
-    #load psyco
+    #load psyco if specified
     if options.optimise:
         try:
             print 'Loading Psyco...'
@@ -80,5 +81,17 @@ if __name__ == '__main__' :
     if len(non_critical_errors) > 0:
         _print_error_list('The following non-critical errors were encountered:', non_critical_errors)
     
-    #run the configuration
-    run_config(config_module['config'])
+    #run the config (and profile if specified)
+    if options.profile:
+        from cProfile import Profile
+        print 'Initialising cProfile...'
+        profiler = Profile()
+        try:
+            profiler.runcall(run_config, config_module['config'])
+        finally:
+            import pstats
+            print ''
+            print 'cProfile statistics:'
+            pstats.Stats(profiler).sort_stats('cumulative').print_stats()
+    else:
+        run_config(config_module['config'])
