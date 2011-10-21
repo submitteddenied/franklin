@@ -1,7 +1,7 @@
 from franklin import Generators
 from franklin.monitors import CSVMonitor
 from franklin.events import ChangeGeneratorMarkupEvent, ChangeGeneratorCapacityDataGeneratorEvent, ChangeConsumerLoadDataGeneratorEvent
-from franklin.agents import Generator
+from franklin.agents import Generator, Consumer
 
 '''
 e.g. python main.py -c cfgs/example1
@@ -13,9 +13,10 @@ providers = [Generators.DataProvider(Generators.MathLoadDataGenerator(), Generat
 config = {
     'runs': 2,
     'days': 3,
-    'generators': [{ Generator.COAL_TYPE: 2, Generator.WIND_TYPE: 1, },
-                   { Generator.COAL_TYPE: 1, Generator.HYDROELECTRIC_TYPE: 2, Generator.NUCLEAR_TYPE: 1, }],
-    'consumers': [1, 1],
+    'generators': [{ 'type': Generator, 'params': {'type': Generator.COAL_TYPE, 'capacity_data_gen': providers[0].capacity_data_gen, 'region': 'VIC'}},
+                   { 'type': Generator, 'params': {'type': Generator.COAL_TYPE, 'capacity_data_gen': providers[1].capacity_data_gen, 'region': 'NSW'}},],
+    'consumers': [{ 'type': Consumer, 'params': {'load_func': providers[0].load_data_gen.get_load, 'dist_share_func': None, 'region': 'VIC'}},
+                  { 'type': Consumer, 'params': {'load_func': providers[1].load_data_gen.get_load, 'dist_share_func': None, 'region': 'NSW'}},],
     'regions': ['VIC', 'NSW'],
     'data_providers': providers,
     'monitor': CSVMonitor(filepath='results/example1.csv'),

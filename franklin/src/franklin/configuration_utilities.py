@@ -21,10 +21,12 @@ CONFIG_SYNTAX = {
         'default': 1,
     },
     'generators': {
-        'validator': lambda x: type(x) is list and len(x) > 0 and reduce(lambda a, b: a and b, map(lambda c: isinstance(c, dict), x)),
+        #we start with True and then make sure that they all pass validate_agent_item
+        'validator': lambda x: reduce(lambda a, b: a and validate_agent_item(b), x, True),
     },
     'consumers': {
-        'validator': lambda x: type(x) is list and len(x) > 0,
+        #we start with True and then make sure that they all pass validate_agent_item
+        'validator': lambda x: reduce(lambda a, b: a and validate_agent_item(b), x, True),
     },
     'logger': {
         'validator': lambda x: isinstance(x, Logger),
@@ -59,7 +61,23 @@ CONFIG_SYNTAX = {
         'default': [],
     },
 }
-   
+
+def validate_agent_item(generator_dict):
+    import inspect
+    if not (generator_dict.has_key('type') and generator_dict.has_key('params')):
+        return False
+    params = generator_dict['params']
+    args, _, _, defaults = inspect.getargspec(generator_dict['type'].__init__)
+    #these params are not specified in the config.
+    ignored_args = set(['self', 'id', 'simulation', 'dist_share_func'])
+    for arg_idx in range(len(args)):
+        if args[arg_idx] in ignored_args:
+            continue
+        has_default = defaults is not None and len(args) - arg_idx <= len(defaults)
+        if not params.has_key(args[arg_idx]) and not has_default:
+            return False
+    return True
+
 def validate_config_module(config_module):
     critical_errors = []
     non_critical_errors = []

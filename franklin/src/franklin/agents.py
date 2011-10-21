@@ -45,7 +45,7 @@ class Generator(Agent):
     HYDROELECTRIC_TYPE = 'Hydro'
     NUCLEAR_TYPE = 'Nuclear'
     
-    def __init__(self, id, type, simulation, capacity_data_gen, region, markup=1.1):
+    def __init__(self, id, simulation, type, capacity_data_gen, region, markup=1.1):
         super(Generator, self).__init__(id, simulation, region)
         self.type = type
         self.capacity_data_gen = capacity_data_gen
@@ -114,7 +114,10 @@ class AEMOperator(Agent):
         self.load_pred_queue = deque()
         self.load = {}
         self.interval_price_log = []
+        self.interval_price = []
         self.spot_price_log = []
+        self.load_log = []
+        
         
     def initialise(self, generators, capacity_data_gen, load_data_gen):
         time = Time(0, 0)
@@ -125,13 +128,15 @@ class AEMOperator(Agent):
                 price = capacity_data_gen.get_cost(g, time)
                 bidlist.append(Bid(g, time, cap, price * g.markup))
             self.load_pred_queue.append(load_data_gen.get_load(time))
-            time.interval += 1
+            time.increment()
             self.pool_queue.append(bidlist)
     
     def process_schedule(self, time):
         self.simulation.log.output("Producing Schedule for %s" % time)
         #send load dispatch messages (probably just log them)
+        assert len(self.load_pred_queue) > 0
         load = self.load_pred_queue.popleft()
+        self.load_log.append((copy(time), load))
         bids = self.pool_queue.popleft()
         bids.sort(key=lambda b: b.price)
         
@@ -150,7 +155,8 @@ class AEMOperator(Agent):
             self.simulation.log.error("Unable to handle load requirements! (produced %d/%dMW)" % (load_handled, load))
         
         self.simulation.log.info("Load: %d, Dispatched %d generators. Interval price: %f" % (load, len(dispatched), bids[i-1].price))
-        self.interval_price_log.append(bids[i-1].price)
+        self.interval_price.append(bids[i-1].price)
+        self.interval_price_log.append((copy(time), bids[i-1].price))
         #tell generators what tomorrow's load is predicted to be
         for d in dispatched:
             self.simulation.log.info(" - Dispatching %s (%s) for %dMW" % (d[0].id, d[0].type, d[1]))
@@ -158,8 +164,9 @@ class AEMOperator(Agent):
         
         if time.interval % 6 == 5:
             #calculate the price for the trading period
-            spot_price = sum(self.interval_price_log) / 6
-            self.interval_price_log = [] #clear for next trading period
+            spot_price = sum(self.interval_price) / 6
+            
+            self.interval_price = [] #clear for next trading period
             self.simulation.log.info("Trading Period %d finished, spot price: %f" % (time.interval / 6, spot_price))
             self.spot_price_log.append((copy(time), spot_price))
     

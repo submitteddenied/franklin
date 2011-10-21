@@ -26,10 +26,12 @@ class Simulation(object):
          - data_provider: a list of the same length as regions of the same of 
                      objects with .load_data_gen and .capacity_data_gen, each of which
                      have functions for consumers and generators respectively
-         - generators: a list of numbers with the same length as regions 
-                         of generators for each region
-         - consumers: a list of numbers with the same length as regions 
-                         of consumers for each region
+         - generators: a list of "agent spec" dictionaries, see consumers.
+         - consumers: a list of "agent spec" dictionaries, which contains the following:
+             'type': An agent class to be used to instantiate this agent
+             'params': A dict containing params the class requires to be constructed
+                 excluding the 'id' and 'simulation' args, which will be provided
+                 when the simulation is being constructed.
         '''
         self.message_dispatcher = MessageDispatcher()
         self.log = logger
@@ -38,21 +40,34 @@ class Simulation(object):
         generator_dict = {}
         consumer_dict = {}
         self.operators = {}
+        region_consumers = {}
+        for consumer in consumers:
+            r = consumer['params']['region']
+            if region_consumers.has_key(r):
+                region_consumers[r] += 1
+            else:
+                region_consumers[r] = 1
+        region_generators = {}
+        agent_id = 1
+        for gen_data in generators:
+            generator = gen_data['type']("Generator %d" % (agent_id), self, **gen_data['params'])
+            if not region_generators.has_key(generator.region):
+                region_generators[generator.region] = []
+            region_generators[generator.region].append(generator)
+            generator_dict[generator.id] = generator
+            agent_id += 1
+            
+        for cons_data in consumers:
+            cons_data['params']['dist_share_func'] = lambda a, t: 1/region_consumers[cons_data['params']['region']]
+            consumer = cons_data['type']("Consumer %d" % (agent_id), self, **cons_data['params'])
+            consumer_dict[consumer.id] = consumer
+            agent_id += 1
+            
         for i in range(len(regions)):
             region = regions[i]
-            self.operators[region] = AEMOperator('AEMO-' + region, self, region)
-            region_generators = []
-            for generator_type,quantity in generators[i].items():
-                for j in range(quantity):
-                    gen = Generator("Generator %d.%d" % (i+1, len(region_generators)+1), generator_type, self, data_provider[i].capacity_data_gen, region)
-                    generator_dict[gen.id] = gen
-                    region_generators.append(gen)
-            for j in range(consumers[i]):
-                cons= Consumer("Consumer %d.%d" % (i,j), self, 
-                               data_provider[i].load_data_gen.get_load, lambda a, t: 1 / consumers[i], region)
-                consumer_dict[cons.id] = cons
-                
-            self.operators[region].initialise(region_generators, data_provider[i].capacity_data_gen,
+            operator = AEMOperator('AEMO-%s' % region, self, region)
+            self.operators[region] = operator
+            operator.initialise(region_generators[region], data_provider[i].capacity_data_gen,
                                          data_provider[i].load_data_gen)
             
         self.agents = dict(generator_dict.items() + consumer_dict.items() + self.operators.items())
