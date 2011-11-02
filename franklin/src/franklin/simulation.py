@@ -39,7 +39,7 @@ class Simulation(object):
         self.event_stack = sorted(events, key=lambda event: event.time, reverse=True)
         generator_dict = {}
         consumer_dict = {}
-        self.operators = {}
+        self.operators_by_region = {}
         region_consumers = {}
         for consumer in consumers:
             r = consumer['params']['region']
@@ -50,7 +50,8 @@ class Simulation(object):
         region_generators = {}
         agent_id = 1
         for gen_data in generators:
-            generator = gen_data['type']("Generator %d" % (agent_id), self, **gen_data['params'])
+            id = gen_data['id'] if 'id' in gen_data else "Generator %d" % (agent_id) 
+            generator = gen_data['type'](id, self, **gen_data['params'])
             if not region_generators.has_key(generator.region):
                 region_generators[generator.region] = []
             region_generators[generator.region].append(generator)
@@ -66,11 +67,11 @@ class Simulation(object):
         for i in range(len(regions)):
             region = regions[i]
             operator = AEMOperator('AEMO-%s' % region, self, region)
-            self.operators[region] = operator
+            self.operators_by_region[region] = operator
             operator.initialise(region_generators[region], data_provider[i].capacity_data_gen,
                                          data_provider[i].load_data_gen)
             
-        self.agents = dict(generator_dict.items() + consumer_dict.items() + self.operators.items())
+        self.agents = dict(generator_dict.items() + consumer_dict.items() + self.operators_by_region.items())
         self.end_time = end_time
     
     def flat_load_dist(self, agent, time):
@@ -87,7 +88,7 @@ class Simulation(object):
         t = Time(0,0)
         while t < self.end_time:
             self.step(t)
-            t = t.increment()
+            t.increment()
     
     def step(self, time):
         self.log.info(time)
@@ -108,5 +109,5 @@ class Simulation(object):
                 nextTime.union(self.agents[a].step(time))
             thisTime = nextTime
         
-        for operator in self.operators.values():
+        for operator in self.operators_by_region.values():
             operator.process_schedule(time)

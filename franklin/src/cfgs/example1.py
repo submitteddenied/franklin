@@ -23,4 +23,5 @@ config = {
     'events': [ChangeGeneratorMarkupEvent(day=0, interval=280, markup=1.5, region='VIC'), 
                ChangeGeneratorCapacityDataGeneratorEvent(day=1, interval=240, capacity_data_gen=Generators.RandomCapacityDataGenerator(1000, 1500, 25, 50), generator_type=Generator.COAL_TYPE), 
                ChangeConsumerLoadDataGeneratorEvent(day=1, interval=260, load_data_gen=Generators.RandomLoadDataGenerator(5000, 8000), region='VIC')],
+    'monitor': CSVMonitor(filepath='results/example1.csv'),
 }

@@ -4,6 +4,7 @@ Created on 01/10/2011
 @author: Luke Horvat
 '''
 import os
+from franklin.time import Time
 
 class Monitor(object):
     #TODO
@@ -20,20 +21,18 @@ class CSVMonitor(Monitor):
         else:
             os.makedirs(folder) #create directory if it does not exist
     
-    '''
-    def log_period(self, interval_price_log, num_dispatched, load_handled, load):
-        f = open(self.filepath, 'w') #FIXME: not efficient
-        for time,price in interval_price_log:
-            f.write('%d,%d,%f\n' % (time.day, time.interval, price), num_dispatched, load_handled, load)
-        f.close()
-    '''
-    
-    def log_run(self, run_no, spot_price_log, region=""):
+    def log_run(self, run_no, simulation):
         f = open(self.filepath, 'a') #FIXME: not efficient
         f.write('run,%d\n' % run_no)
-        f.write('day,interval,spot_price,region\n')
-        for time,spot_price in spot_price_log:
-            #FIXME: inefficient to log region on every line
-            f.write('%d,%d,%f,%s\n' % (time.day, time.interval, spot_price, region))
+        f.write('day,interval,region,num_bids,price,load_supplied,total_load\n')
+        for operator in simulation.operators_by_region.values():
+            time = Time(0,0)
+            while time < simulation.end_time:
+                interval_price = operator.interval_price_log[time]
+                load_supplied = operator.load_supplied_log[time]
+                total_load = sum(load_prediction.watts for load_prediction in operator.load_predictions_by_time[time])
+                num_bids = len(operator.bids_by_time[time])
+                f.write('%d,%d,%s,%d,%f,%f,%f\n' % (time.day, time.interval, operator.region, num_bids, interval_price, load_supplied, total_load))
+                time.increment()
         f.close()
         

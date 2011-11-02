@@ -35,8 +35,6 @@ class Time(object):
         if self.interval >= INTERVALS_IN_DAY:
             self.interval = 0
             self.day += 1
-            
-        return self
     
     def next(self):
         '''
@@ -66,6 +64,9 @@ class Time(object):
     
     def __ge__(self, other):
         return self._comp(other) >= 0
+    
+    def __hash__(self):
+        return hash("{%d}, {%d}" % (self.day, self.interval))
     
     def _comp(self, other):
         '''

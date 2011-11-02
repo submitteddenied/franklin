@@ -41,8 +41,7 @@ def run_config(config):
         simulation.run()
         
         #log the run via the monitor
-        for region, operator in simulation.operators.items():
-            monitor.log_run(run_no, operator.spot_price_log, region)
+        monitor.log_run(run_no, simulation)
     print ' ...Complete'
 
 if __name__ == '__main__' :    
