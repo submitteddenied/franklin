@@ -113,7 +113,7 @@ class AEMOperator(Agent):
     def __init__(self, id, simulation, region):
         super(AEMOperator, self).__init__(id, simulation, region)
         self.bids_by_time = {} #bids stored in a dict. key = time, value = a list of bids for that time.
-        self.load_predictions_by_time = {} #load predictions stored in a dict. key = time, value = load prediction in watts for that time.
+        self.load_predictions_by_time = {} #load predictions stored in a dict. key = time, value = load prediction for that time.
         self.interval_price_log = {} #interval prices stored in a dict. key = time, value = interval price at that time.
         self.load_supplied_log = {} #loads supplied stored in a dict. key = time, value = load supplied at that time.
         

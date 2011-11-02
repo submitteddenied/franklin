@@ -42,7 +42,8 @@ class Time(object):
         time object, incremented - rather than incrementing this time.
         '''
         result = Time(self.day, self.interval)
-        return result.increment()
+        result.increment()
+        return result
     
     def __str__(self):
         return "<Day: %d, Interval: %d>" % (self.day, self.interval)
