@@ -4,11 +4,7 @@ This module contains Franklin's agents.
 
 from copy import copy
 from message import GenerationAmendment, LoadPrediction, Bid, Dispatch
-from time import Time
-
-INTERVAL_DURATION_MINUTES = 5
-INTERVALS_PER_TRADING_PERIOD = 6
-INTERVALS_PER_DAY = (60 * 24) / INTERVAL_DURATION_MINUTES
+from datetime import timedelta
 
 class Agent(object):
     '''
@@ -55,7 +51,7 @@ class Generator(Agent):
     def step(self, time):
         '''
         At each step, generators fetch their messages from the dispatcher, post
-        a bid for this time tomorrow and possibly revise their generating 
+        a bid for this time time_tomorrow and possibly revise their generating 
         capacity for the current period.
         
         Returns a list of agent ids if this Generator requires other agents (or
@@ -63,10 +59,12 @@ class Generator(Agent):
         ''' 
         messages = self.get_messages()
         #self.simulation.log.debug("%s: I got %d messages!" % (self.id, len(messages)))
-        price = self.capacity_data_gen.get_cost(self, time.tomorrow()) * self.markup
+        
+        time_tomorrow = time + timedelta(days=1)
+        price = self.capacity_data_gen.get_cost(self, time_tomorrow) * self.markup
         self.simulation.message_dispatcher.send(Bid(self,
-                                                    time.tomorrow(), 
-                                                    self.capacity_data_gen.get_capacity(self, time.tomorrow()), 
+                                                    time_tomorrow, 
+                                                    self.capacity_data_gen.get_capacity(self, time_tomorrow), 
                                                     price),
                                               self.simulation.operators_by_region[self.region].id)
         
@@ -88,7 +86,7 @@ class Consumer(Agent):
     def step(self, time):
         '''
         At each step, consumers fetch their messages from the dispatcher, and
-        submit an estimate for the load requirements for tomorrow
+        submit an estimate for the load requirements for time_tomorrow
         
         Returns a list of agent ids if this Consumer requires other agents (or
         itself) to run their step again in this time interval.
@@ -96,9 +94,9 @@ class Consumer(Agent):
         messages = self.get_messages()
         #self.simulation.log.debug("%s: I got %d messages!" % (self.id, len(messages)))
         
-        tomorrow = time.tomorrow()
-        load_req = self.load_func(tomorrow) * self.dist_share_func(self, tomorrow)
-        self.simulation.message_dispatcher.send(LoadPrediction(self, tomorrow, load_req),
+        time_tomorrow = time + timedelta(days=1)
+        load_req = self.load_func(time_tomorrow) * self.dist_share_func(self, time_tomorrow)
+        self.simulation.message_dispatcher.send(LoadPrediction(self, time_tomorrow, load_req),
                                                 self.simulation.operators_by_region[self.region].id)
         
         return []
@@ -110,22 +108,27 @@ class AEMOperator(Agent):
     cost schedule.
     '''
     
+    INTERVAL_DURATION_MINUTES = 5
+    INTERVALS_PER_TRADING_PERIOD = 6
+    DAILY_TRADING_START_HOUR = 4
+    
     def __init__(self, id, simulation, region):
         super(AEMOperator, self).__init__(id, simulation, region)
         self.bids_by_time = {} #bids stored in a dict. key = time, value = a list of bids for that time.
         self.load_predictions_by_time = {} #load predictions stored in a dict. key = time, value = load prediction for that time.
-        self.interval_price_log = {} #interval prices stored in a dict. key = time, value = interval price at that time.
-        self.load_supplied_log = {} #loads supplied stored in a dict. key = time, value = load supplied at that time.
+        self.interval_prices_by_time = {} #interval prices stored in a dict. key = time, value = interval price at that time.
+        self.load_supplied_by_time = {} #loads supplied stored in a dict. key = time, value = load supplied at that time.
         
     def initialise(self, generators, capacity_data_gen, load_data_gen):
         #seed the operator with day zero load and bid data
-        for interval in range(INTERVALS_PER_DAY):
-            time = Time(0, interval)
+        time = self.simulation.start_time
+        while time < self.simulation.start_time + timedelta(days=1):
             for generator in generators:
                 capacity = capacity_data_gen.get_capacity(generator, time)
                 price = capacity_data_gen.get_cost(generator, time)
                 self._handle_bid(Bid(generator, time, capacity, price * generator.markup))
             self._handle_load_prediction(LoadPrediction(None, time, load_data_gen.get_load(time)))
+            time += timedelta(minutes=self.INTERVAL_DURATION_MINUTES)
     
     def process_schedule(self, time):
         self.simulation.log.info("%s's schedule:" % self.id)
@@ -146,16 +149,28 @@ class AEMOperator(Agent):
                     break
             
             self.simulation.log.info(" * Total load supplied: %dMW of %dMW (%.2f%%)" % (total_load_supplied, total_load, (100*total_load_supplied / total_load)))
-            self.load_supplied_log[copy(time)] = total_load_supplied
+            self.load_supplied_by_time[copy(time)] = total_load_supplied
             
-            self.simulation.log.info(" * Interval price: $%.2f" % (bid.price))
-            self.interval_price_log[copy(time)] = bid.price
+            self.simulation.log.info(" * Interval price: $%.2f" % bid.price)
+            self.interval_prices_by_time[copy(time)] = bid.price
             
-            #calculate the spot price if the trading period has ended
-            if time.interval % INTERVALS_PER_TRADING_PERIOD == INTERVAL_DURATION_MINUTES:
-                #calculate the spot price (average interval price) for the trading period
-                spot_price = sum(self.interval_price_log[Time(time.day, time.interval - i)] for i in range(INTERVALS_PER_TRADING_PERIOD)) / INTERVALS_PER_TRADING_PERIOD
-                self.simulation.log.info(" * Trading period %d finished, spot price: $%.2f" % (time.interval / INTERVALS_PER_TRADING_PERIOD, spot_price))
+            #calculate the spot price (average interval price) if this is the last interval in the trading period
+            if (time.minute / self.INTERVAL_DURATION_MINUTES) % self.INTERVALS_PER_TRADING_PERIOD == 0:
+                interval_prices = set()
+                sufficient_interval_prices = True
+                for i in range(self.INTERVALS_PER_TRADING_PERIOD):
+                    interval_time = time - timedelta(minutes=self.INTERVAL_DURATION_MINUTES * i)
+                    if interval_time in self.interval_prices_by_time:
+                        interval_prices.add(self.interval_prices_by_time[interval_time])
+                    else:
+                        sufficient_interval_prices = False
+                        break
+                        
+                if sufficient_interval_prices:
+                    spot_price = sum(interval_prices) / self.INTERVALS_PER_TRADING_PERIOD
+                    self.simulation.log.info(" * Trading period finished, spot price: $%.2f" % spot_price)
+                else:
+                    self.simulation.log.info(" * Trading period %d finished, insufficient interval price data to calculate spot price" % (time.minute / self.INTERVALS_PER_TRADING_PERIOD))
         else:
             self.simulation.log.info("No load and/or bid data for this time interval.")
             

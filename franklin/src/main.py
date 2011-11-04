@@ -6,7 +6,6 @@ Created on 12/09/2011
 
 import sys, optparse
 from franklin import configuration_utilities
-from franklin.time import Time
 from franklin.simulation import Simulation
 
 def _exit_with_error_list(message, list=None):
@@ -24,7 +23,8 @@ def run_config(config):
     
     logger = config['logger']
     monitor = config['monitor']
-    end_time = Time(config['days'], 0)
+    start_time = config['start_time']
+    end_time = config['end_time']
     events = config['events']
     regions = config['regions']
     data_providers = config['data_providers']
@@ -37,7 +37,7 @@ def run_config(config):
         print 'Conducting run #%d...' % (run_no + 1)
         
         #run a simulation
-        simulation = Simulation(logger, monitor, end_time, events, regions, data_providers, generators, consumers)
+        simulation = Simulation(logger, monitor, start_time, end_time, events, regions, data_providers, generators, consumers)
         simulation.run()
         
         #log the run via the monitor

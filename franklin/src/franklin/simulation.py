@@ -5,21 +5,21 @@ Created on 12/09/2011
 '''
 
 from message import MessageDispatcher
-from agents import *
+from agents import AEMOperator
+from datetime import timedelta
 
 class Simulation(object):
     '''
     The Simulation object contains the logic for running a simulation.
     '''
     
-    def __init__(self, logger, monitor, end_time, events, regions, 
-                 data_provider, generators, consumers):
+    def __init__(self, logger, monitor, start_time, end_time, events, regions, data_provider, generators, consumers):
         '''
         The Simulation Constructor takes the following arguments:
          - logger: a Logging object
          - monitor: a data monitor object
-         - end_time: The end (and therefore length) of a simulation. Simulations
-                     always start at Time(0,0)
+         - start_time: The start date and time of a simulation.
+         - end_time: The end date and time of a simulation.
          - events: A list of events that will be used to modify the simulation while it
            is running.
          - regions: A list of region names
@@ -36,7 +36,9 @@ class Simulation(object):
         self.message_dispatcher = MessageDispatcher()
         self.log = logger
         self.monitor = monitor
-        self.event_stack = sorted(events, key=lambda event: event.time, reverse=True)
+        self.start_time = start_time
+        self.end_time = end_time
+        self.event_stack = sorted(events, key=lambda event: event.time_delta, reverse=True)
         generator_dict = {}
         consumer_dict = {}
         self.operators_by_region = {}
@@ -72,32 +74,21 @@ class Simulation(object):
                                          data_provider[i].load_data_gen)
             
         self.agents = dict(generator_dict.items() + consumer_dict.items() + self.operators_by_region.items())
-        self.end_time = end_time
-    
-    def flat_load_dist(self, agent, time):
-        cons = 0
-        for a in self.agents:
-            if isinstance(a, Consumer):
-                cons += 1
-        if cons > 0:
-            return 1/cons
-        else:
-            return 1
     
     def run(self):
-        t = Time(0,0)
-        while t < self.end_time:
-            self.step(t)
-            t.increment()
+        time = self.start_time
+        while time <= self.end_time:
+            self.step(time)
+            time += timedelta(minutes=AEMOperator.INTERVAL_DURATION_MINUTES)
     
     def step(self, time):
-        self.log.info(time)
+        self.log.info('<Time: %s>' % time)
         
         #process events
-        while len(self.event_stack) > 0 and self.event_stack[-1].time == time:
+        while len(self.event_stack) > 0 and time >= self.start_time + self.event_stack[-1].time_delta:
             event = self.event_stack.pop()
             event.process_event(self)
-            self.log.info("Processed event: %s" % event)
+            self.log.info('Processed event: %s' % event)
         
         #process agent communications
         nextTime = set()

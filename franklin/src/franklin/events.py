@@ -4,15 +4,14 @@ Created on 07/10/2011
 @author: Luke Horvat
 '''
 
-from time import Time
 from agents import Generator, Consumer
-from Generators import CapacityDataGenerator, LoadDataGenerator
+from data_providers import CapacityDataGenerator, LoadDataGenerator
 
 class SimulationEvent(object):
     
-    def __init__(self, name, day, interval):
+    def __init__(self, name, time_delta):
         self.name = name
-        self.time = Time(day, interval)
+        self.time_delta = time_delta #the relative time difference from the start time of the simulation
     
     def process_event(self, simulation):
         pass
@@ -27,8 +26,8 @@ class ChangeGeneratorMarkupEvent(SimulationEvent):
     all generators and regions if not specified).
     '''
     
-    def __init__(self, day, interval, markup, relative=False, generator_type=None, region=None):
-        super(ChangeGeneratorMarkupEvent, self).__init__('Change Generator Markup (value=%0.2f, relative=%s)' % (markup, relative), day, interval)
+    def __init__(self, time_delta, markup, relative, generator_type=None, region=None):
+        super(ChangeGeneratorMarkupEvent, self).__init__('Change Generator Markup (value=%0.2f, relative=%s)' % (markup, relative), time_delta)
         self.markup = markup
         self.relative = relative
         self.generator_type = generator_type
@@ -36,7 +35,7 @@ class ChangeGeneratorMarkupEvent(SimulationEvent):
     
     def process_event(self, simulation):
         for agent in simulation.agents.values():
-            if (not self.generator_type or (isinstance(agent, Generator) and agent.type == self.generator_type)) and (not self.region or self.region == agent.region):
+            if isinstance(agent, Generator) and (not self.generator_type or agent.type == self.generator_type) and (not self.region or self.region == agent.region):
                 agent.markup = agent.markup + self.markup if self.relative else self.markup
 
 class ChangeGeneratorCapacityDataGeneratorEvent(SimulationEvent):
@@ -46,8 +45,8 @@ class ChangeGeneratorCapacityDataGeneratorEvent(SimulationEvent):
     all generators and regions if not specified).
     '''
     
-    def __init__(self, day, interval, capacity_data_gen, generator_type=None, region=None):
-        super(ChangeGeneratorCapacityDataGeneratorEvent, self).__init__('Change Generator Capacity Data Generator (value=%s)' % capacity_data_gen, day, interval)
+    def __init__(self, time_delta, capacity_data_gen, generator_type=None, region=None):
+        super(ChangeGeneratorCapacityDataGeneratorEvent, self).__init__('Change Generator Capacity Data Generator (value=%s)' % capacity_data_gen, time_delta)
         assert isinstance(capacity_data_gen, CapacityDataGenerator)
         self.capacity_data_gen = capacity_data_gen
         self.generator_type = generator_type
@@ -55,7 +54,7 @@ class ChangeGeneratorCapacityDataGeneratorEvent(SimulationEvent):
     
     def process_event(self, simulation):
         for agent in simulation.agents.values():
-            if (not self.generator_type or (isinstance(agent, Generator) and agent.type == self.generator_type)) and (not self.region or self.region == agent.region):
+            if isinstance(agent, Generator) and (not self.generator_type or agent.type == self.generator_type) and (not self.region or self.region == agent.region):
                 agent.capacity_data_gen = self.capacity_data_gen
 
 class ChangeConsumerLoadDataGeneratorEvent(SimulationEvent):
@@ -65,8 +64,8 @@ class ChangeConsumerLoadDataGeneratorEvent(SimulationEvent):
     all regions if not specified).
     '''
     
-    def __init__(self, day, interval, load_data_gen, region=None):
-        super(ChangeConsumerLoadDataGeneratorEvent, self).__init__('Change Consumer Load Data Generator (value=%s)', day, interval)
+    def __init__(self, time_delta, load_data_gen, region=None):
+        super(ChangeConsumerLoadDataGeneratorEvent, self).__init__('Change Consumer Load Data Generator (value=%s)', time_delta)
         assert isinstance(load_data_gen, LoadDataGenerator)
         self.load_data_gen = load_data_gen
         self.region = region
