@@ -13,7 +13,7 @@ class Simulation(object):
     The Simulation object contains the logic for running a simulation.
     '''
     
-    def __init__(self, logger, monitor, start_time, end_time, events, regions, data_provider, generators, consumers):
+    def __init__(self, logger, monitor, start_time, end_time, events, regions, regional_data_initialisers, generators, consumers):
         '''
         The Simulation Constructor takes the following arguments:
          - logger: a Logging object
@@ -23,7 +23,7 @@ class Simulation(object):
          - events: A list of events that will be used to modify the simulation while it
            is running.
          - regions: A list of region names
-         - data_provider: a list of the same length as regions of the same of 
+         - regional_data_initialisers: a list of the same length as regions of the same of 
                      objects with .load_data_gen and .capacity_data_gen, each of which
                      have functions for consumers and generators respectively
          - generators: a list of "agent spec" dictionaries, see consumers.
@@ -34,13 +34,12 @@ class Simulation(object):
                  when the simulation is being constructed.
         '''
         self.message_dispatcher = MessageDispatcher()
-        self.log = logger
+        self.logger = logger
         self.monitor = monitor
         self.start_time = start_time
         self.end_time = end_time
         self.event_stack = sorted(events, key=lambda event: event.time_delta, reverse=True)
-        generator_dict = {}
-        consumer_dict = {}
+        self.agents = {}
         self.operators_by_region = {}
         region_consumers = {}
         for consumer in consumers:
@@ -54,26 +53,25 @@ class Simulation(object):
         for gen_data in generators:
             id = gen_data['id'] if 'id' in gen_data else "Generator %d" % (agent_id) 
             generator = gen_data['type'](id, self, **gen_data['params'])
-            if not region_generators.has_key(generator.region):
+            if generator.region not in region_generators:
                 region_generators[generator.region] = []
             region_generators[generator.region].append(generator)
-            generator_dict[generator.id] = generator
+            self.agents[generator.id] = generator
             agent_id += 1
             
         for cons_data in consumers:
+            id = cons_data['id'] if 'id' in cons_data else "Consumer %d" % (agent_id) 
             cons_data['params']['dist_share_func'] = lambda a, t: 1/region_consumers[cons_data['params']['region']]
-            consumer = cons_data['type']("Consumer %d" % (agent_id), self, **cons_data['params'])
-            consumer_dict[consumer.id] = consumer
+            consumer = cons_data['type'](id, self, **cons_data['params'])
+            self.agents[consumer.id] = consumer
             agent_id += 1
             
-        for i in range(len(regions)):
-            region = regions[i]
+        for region in regions:
             operator = AEMOperator('AEMO-%s' % region, self, region)
             self.operators_by_region[region] = operator
-            operator.initialise(region_generators[region], data_provider[i].capacity_data_gen,
-                                         data_provider[i].load_data_gen)
-            
-        self.agents = dict(generator_dict.items() + consumer_dict.items() + self.operators_by_region.items())
+            self.agents[operator.id] = operator
+            region_data_initialiser = regional_data_initialisers[region]
+            operator.initialise(region_generators[region], region_data_initialiser.capacity_data_provider, region_data_initialiser.load_data_provider)
     
     def run(self):
         time = self.start_time
@@ -82,13 +80,13 @@ class Simulation(object):
             time += timedelta(minutes=AEMOperator.INTERVAL_DURATION_MINUTES)
     
     def step(self, time):
-        self.log.info('<Time: %s>' % time)
+        self.logger.info('<Time: %s>' % time)
         
         #process events
         while len(self.event_stack) > 0 and time >= self.start_time + self.event_stack[-1].time_delta:
             event = self.event_stack.pop()
             event.process_event(self)
-            self.log.info('Processed event: %s' % event)
+            self.logger.info('Processed event: %s' % event)
         
         #process agent communications
         nextTime = set()

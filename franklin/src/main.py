@@ -27,7 +27,7 @@ def run_config(config):
     end_time = config['end_time']
     events = config['events']
     regions = config['regions']
-    data_providers = config['data_providers']
+    regional_data_initialisers = config['regional_data_initialisers']
     generators = config['generators']
     consumers = config['consumers']
     runs = config['runs']
@@ -37,7 +37,7 @@ def run_config(config):
         print 'Conducting run #%d...' % (run_no + 1)
         
         #run a simulation
-        simulation = Simulation(logger, monitor, start_time, end_time, events, regions, data_providers, generators, consumers)
+        simulation = Simulation(logger, monitor, start_time, end_time, events, regions, regional_data_initialisers, generators, consumers)
         simulation.run()
         
         #log the run via the monitor

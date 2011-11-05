@@ -7,16 +7,9 @@ from collections import namedtuple
 from datetime import datetime
 from agents import AEMOperator
 
-DataProvider = namedtuple("DataProvider", ['load_data_gen', 'capacity_data_gen'])
+RegionalDataInitialiser = namedtuple('RegionalDataInitialiser', ['load_data_provider', 'capacity_data_provider'])
 
-class LoadDataGenerator(object):
-    def get_capacity(self, generator, time):
-        pass
-    
-    def get_load(self, time):
-        pass
-
-class MathLoadDataGenerator(LoadDataGenerator):
+class MathLoadDataProvider(object):
     
     SECONDS_IN_A_MINUTE = 60
     
@@ -49,7 +42,7 @@ class MathLoadDataGenerator(LoadDataGenerator):
         
         return result
 
-class RandomLoadDataGenerator(LoadDataGenerator):
+class RandomLoadDataProvider(object):
     '''
     This class generates random load data within a specified range.
     '''
@@ -64,14 +57,7 @@ class RandomLoadDataGenerator(LoadDataGenerator):
     def get_load(self, time):
         return self.rand.uniform(self.min_load, self.max_load)
 
-class CapacityDataGenerator(object):
-    def get_capacity(self, generator, time):
-        pass
-    
-    def get_cost(self, generator, time):
-        pass
-
-class StaticCapacityDataGenerator(CapacityDataGenerator):
+class StaticCapacityDataProvider(object):
     '''
     This class just spits out flat data for generators to use.
     It does introduce some randomness for the price calculation.
@@ -94,7 +80,7 @@ class StaticCapacityDataGenerator(CapacityDataGenerator):
         '''
         return 32.5 + self.rand.uniform(-10, 10)
 
-class RandomCapacityDataGenerator(CapacityDataGenerator):
+class RandomCapacityDataProvider(object):
     '''
     This class generates random capacity data within a specified range.
     '''
@@ -115,9 +101,9 @@ class RandomCapacityDataGenerator(CapacityDataGenerator):
     def get_cost(self, generator, time):
         return self.rand.uniform(self.min_cost, self.max_cost)
 
-class CSVOneDayLoadDataGenerator(LoadDataGenerator):
+class CSVOneDayLoadDataProvider(object):
     '''
-    CSVOneDayLoadDataGenerator reads in a file from the AEMO website that contains
+    CSVOneDayLoadDataProvider reads in a file from the AEMO website that contains
     24 hours of load demand data.
     The file must be in CSV format and contain the following columns:
      - REGION

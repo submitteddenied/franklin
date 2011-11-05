@@ -7,11 +7,7 @@ import os
 from datetime import timedelta
 from agents import AEMOperator
 
-class Monitor(object):
-    #TODO
-    pass
-
-class CSVMonitor(Monitor):
+class CSVMonitor(object):
     
     def __init__(self, filepath):
         self.filepath = filepath
