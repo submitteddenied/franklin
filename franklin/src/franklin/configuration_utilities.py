@@ -39,28 +39,22 @@ sub-dictionaries are explained below:
                key, the value of this key.
 '''
 CONFIG_SYNTAX = {
-    'runs': {
-        'pre-validator': lambda x: type(x) is int and x > 0,
-        'default': 1,
-    },
     'start_time': {
         'pre-validator': lambda x: isinstance(x, datetime),
         'post-processor': lambda x: x.replace(hour=AEMOperator.DAILY_TRADING_START_HOUR, minute=AEMOperator.INTERVAL_DURATION_MINUTES, second=0, microsecond=0),
     },
     'end_time': {
         'pre-validator': lambda x: isinstance(x, datetime),
+        'post-processor': lambda x: x.replace(hour=AEMOperator.DAILY_TRADING_START_HOUR, minute=0, second=0, microsecond=0),
         'post-validators': {
             'start_time': lambda x, start_time: x > start_time,
         },
-        'post-processor': lambda x: x.replace(hour=AEMOperator.DAILY_TRADING_START_HOUR, minute=0, second=0, microsecond=0),
     },
     'generators': {
-        #we start with True and then make sure that they all pass _validate_agent_item
-        'pre-validator': lambda x: _is_iterable(x, False) and reduce(lambda a, b: a and _validate_agent_item(b), x, True),
+        'pre-validator': lambda x: _is_iterable(x, False) and reduce(lambda a, b: a and _has_attributes(b, 'step', ), x), 
     },
     'consumers': {
-        #we start with True and then make sure that they all pass _validate_agent_item
-        'pre-validator': lambda x: _is_iterable(x, False) and reduce(lambda a, b: a and _validate_agent_item(b), x, True),
+        'pre-validator': lambda x: _is_iterable(x, False) and reduce(lambda a, b: a and _has_attributes(b, 'step', ), x), 
     },
     'regions': {
         'pre-validator': lambda x: _is_iterable(x, False),
@@ -94,22 +88,6 @@ def _is_iterable(x, treat_string_as_iterable=True):
         return True if treat_string_as_iterable else not isinstance(x, basestring)
     except TypeError:
         return False
-
-def _validate_agent_item(generator_dict):
-    import inspect
-    if 'type' not in generator_dict or 'params' not in generator_dict:
-        return False
-    params = generator_dict['params']
-    args, _, _, defaults = inspect.getargspec(generator_dict['type'].__init__)
-    #these params are not specified in the config.
-    ignored_args = set(['self', 'id', 'simulation', 'dist_share_func'])
-    for arg_idx in range(len(args)):
-        if args[arg_idx] in ignored_args:
-            continue
-        has_default = defaults is not None and len(args) - arg_idx <= len(defaults)
-        if not params.has_key(args[arg_idx]) and not has_default:
-            return False
-    return True
 
 def validate_config_module(config_module):
     return _parse_dict(CONFIG_SYNTAX, config_module, 'config')

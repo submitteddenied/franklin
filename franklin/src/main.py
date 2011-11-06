@@ -30,18 +30,14 @@ def run_config(config):
     regional_data_initialisers = config['regional_data_initialisers']
     generators = config['generators']
     consumers = config['consumers']
-    runs = config['runs']
     
     print 'Starting...'
-    for run_no in range(runs):
-        print 'Conducting run #%d...' % (run_no + 1)
-        
-        #run a simulation
-        simulation = Simulation(logger, monitor, start_time, end_time, events, regions, regional_data_initialisers, generators, consumers)
-        simulation.run()
-        
-        #log the run via the monitor
-        monitor.log_run(run_no, simulation)
+    #run a simulation
+    simulation = Simulation(logger, start_time, end_time, events, regions, regional_data_initialisers, generators, consumers)
+    simulation.run()
+    
+    #log the run via the monitor
+    monitor.log_run(simulation)
     print ' ...Complete'
 
 if __name__ == '__main__' :    

@@ -9,13 +9,11 @@ load_data_provider = CSVOneDayLoadDataProvider('../data/vic-to213005102011.csv')
 capacity_data_provider = StaticCapacityDataProvider()
 
 config = {
-    'runs': 1,
     'start_time': load_data_provider.start_time,
     'end_time': load_data_provider.end_time,
-    'generators': [ { 'type': Generator, 'params': { 'capacity_data_provider': capacity_data_provider, 'region': 'VIC' } }, ],
-    'consumers': [ { 'type': Consumer, 'params': { 'load_data_provider': load_data_provider, 'dist_share_func': None, 'region': 'VIC' } }, ],
-    'regions': ('VIC',),
+    'generators': [ Generator('Generator 1', 'VIC', capacity_data_provider), ],
+    'consumers': [ Consumer('Consumer 1', 'VIC', load_data_provider), ],
+    'regions': [ 'VIC' ],
     'regional_data_initialisers': { 'VIC': RegionalDataInitialiser(load_data_provider, capacity_data_provider) },
     'monitor': CSVMonitor(filepath='results/csv_loader.csv'),
-    'events': [],
 }

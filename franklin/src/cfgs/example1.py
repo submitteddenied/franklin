@@ -8,26 +8,25 @@ from datetime import datetime, timedelta
 e.g. python main.py -c cfgs/example1
 '''
 
-regions = ('VIC', 'NSW')
+regions = ['VIC', 'NSW']
 
 load_data_provider = MathLoadDataProvider()
 capacity_data_provider = StaticCapacityDataProvider()
 
-generators = [ { 'type': Generator, 'params': {'capacity_data_provider': capacity_data_provider, 'region': 'VIC', } },
-               { 'type': Generator, 'params': {'capacity_data_provider': capacity_data_provider, 'region': 'NSW', } }, ]
+generators = [ Generator('Generator 1', 'VIC', capacity_data_provider),
+               Generator('Generator 2', 'NSW', capacity_data_provider), ]
 
-consumers = [ { 'type': Consumer, 'params': { 'load_data_provider': load_data_provider, 'dist_share_func': None, 'region': 'VIC' } },
-              { 'type': Consumer, 'params': { 'load_data_provider': load_data_provider, 'dist_share_func': None, 'region': 'NSW' } }, ]
+consumers = [ Consumer('Consumer 1', 'VIC', load_data_provider),
+              Consumer('Consumer 2', 'NSW', load_data_provider), ]
 
 regional_data_initialisers = { 'VIC': RegionalDataInitialiser(load_data_provider, capacity_data_provider),
                                'NSW': RegionalDataInitialiser(load_data_provider, capacity_data_provider), }
 
-events = [ ChangeGeneratorMarkupEvent(timedelta(days=1), markup=1.5, relative=False, region='VIC'), 
-           ChangeGeneratorCapacityDataProviderEvent(timedelta(days=2), capacity_data_provider=RandomCapacityDataProvider(1000, 1500, 25, 50)), 
+events = [ ChangeGeneratorMarkupEvent(timedelta(days=1), markup=2.5, relative=False, region='VIC'), 
+           ChangeGeneratorCapacityDataProviderEvent(timedelta(days=2), capacity_data_provider=RandomCapacityDataProvider(1000, 1500, 25, 50), region='VIC'), 
            ChangeConsumerLoadDataProviderEvent(timedelta(days=2), load_data_provider=RandomLoadDataProvider(4000, 7000), region='NSW'), ]
 
 config = {
-    'runs': 2,
     'start_time': datetime.today(),
     'end_time': datetime.today() + timedelta(days=4),
     'generators': generators,

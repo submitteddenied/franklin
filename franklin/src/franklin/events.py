@@ -25,7 +25,7 @@ class ChangeGeneratorMarkupEvent(SimulationEvent):
     all generators and regions if not specified).
     '''
     
-    def __init__(self, time_delta, markup, relative, gen_type=None, region=None):
+    def __init__(self, time_delta, markup, relative, region, gen_type=None):
         super(ChangeGeneratorMarkupEvent, self).__init__('Change Generator Markup (value=%0.2f, relative=%s)' % (markup, relative), time_delta)
         self.markup = markup
         self.relative = relative
@@ -33,9 +33,10 @@ class ChangeGeneratorMarkupEvent(SimulationEvent):
         self.region = region
     
     def process_event(self, simulation):
-        for agent in simulation.agents.values():
-            if isinstance(agent, Generator) and (not self.gen_type or agent.type == self.gen_type) and (not self.region or self.region == agent.region):
-                agent.markup = agent.markup + self.markup if self.relative else self.markup
+        for generator in simulation.generators_by_region[self.region]:
+            if hasattr(generator, 'capacity_data_provider') and \
+            (not self.gen_type or (hasattr(generator, 'gen_type') and generator.gen_type and generator.gen_type == self.gen_type)):
+                generator.markup = generator.markup + self.markup if self.relative else self.markup
 
 class ChangeGeneratorCapacityDataProviderEvent(SimulationEvent):
     '''
@@ -44,16 +45,17 @@ class ChangeGeneratorCapacityDataProviderEvent(SimulationEvent):
     all generators and regions if not specified).
     '''
     
-    def __init__(self, time_delta, capacity_data_provider, gen_type=None, region=None):
+    def __init__(self, time_delta, capacity_data_provider, region, gen_type=None):
         super(ChangeGeneratorCapacityDataProviderEvent, self).__init__('Change Generator Capacity Data Generator (value=%s)' % capacity_data_provider, time_delta)
         self.capacity_data_provider = capacity_data_provider
         self.gen_type = gen_type
         self.region = region
     
     def process_event(self, simulation):
-        for agent in simulation.agents.values():
-            if isinstance(agent, Generator) and (not self.gen_type or agent.gen_type == self.gen_type) and (not self.region or self.region == agent.region):
-                agent.capacity_data_provider = self.capacity_data_provider
+        for generator in simulation.generators_by_region[self.region]:
+            if hasattr(generator, 'capacity_data_provider') and \
+            (not self.gen_type or (hasattr(generator, 'gen_type') and generator.gen_type and generator.gen_type == self.gen_type)):
+                generator.capacity_data_provider = self.capacity_data_provider
 
 class ChangeConsumerLoadDataProviderEvent(SimulationEvent):
     '''
@@ -62,12 +64,12 @@ class ChangeConsumerLoadDataProviderEvent(SimulationEvent):
     all regions if not specified).
     '''
     
-    def __init__(self, time_delta, load_data_provider, region=None):
+    def __init__(self, time_delta, load_data_provider, region):
         super(ChangeConsumerLoadDataProviderEvent, self).__init__('Change Consumer Load Data Generator (value=%s)', time_delta)
         self.load_data_provider = load_data_provider
         self.region = region
     
     def process_event(self, simulation):
-        for agent in simulation.agents.values():
-            if isinstance(agent, Consumer) and (not self.region or self.region == agent.region):
-                agent.load_data_provider = self.load_data_provider
+        for consumer in simulation.consumers_by_region[self.region]:
+            if hasattr(consumer, 'load_data_provider'):
+                consumer.load_data_provider = self.load_data_provider
