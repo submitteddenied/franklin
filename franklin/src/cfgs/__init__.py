@@ -1,3 +1,0 @@
-'''
-franklin package
-'''

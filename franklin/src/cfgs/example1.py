@@ -1,38 +1,34 @@
-from franklin.data_providers import RegionalDataInitialiser, RandomCapacityDataProvider, RandomLoadDataProvider, MathLoadDataProvider, StaticCapacityDataProvider
-from franklin.monitors import CSVMonitor
-from franklin.events import ChangeGeneratorMarkupEvent, ChangeGeneratorCapacityDataProviderEvent, ChangeConsumerLoadDataProviderEvent
-from franklin.agents import Generator, Consumer
-from datetime import datetime, timedelta
+from franklin.data_providers import CSVPublicPricesDataProvider, CSVPublicYestBidDataProvider
+from franklin.monitors import CSVFileMonitor
+from franklin.agents import GeneratorWithBidDataProvider, ConsumerWithDemandForecastDataProvider
+from csv import reader
 
 '''
-e.g. python main.py -c cfgs/example1
+EXAMPLE USAGE: python main.py -c cfgs/example1
 '''
 
-regions = ['VIC', 'NSW']
+csv_bid_data_provider = CSVPublicYestBidDataProvider('../data/PUBLIC_YESTBID_201110040000_20111005040507.csv')
 
-load_data_provider = MathLoadDataProvider()
-capacity_data_provider = StaticCapacityDataProvider()
+csv_demand_forecast_data_provider = CSVPublicPricesDataProvider('../data/PUBLIC_PRICES_201110040000_20111005040503.csv')
 
-generators = [ Generator('Generator 1', 'VIC', capacity_data_provider),
-               Generator('Generator 2', 'NSW', capacity_data_provider), ]
+generators = set()
+for row in reader(open('../data/registered-generators.csv', 'rb')):
+    if row[3] == 'Generator' and row[4] == 'Market' and row[5] == 'Scheduled':
+        duid = row[13]
+        region_id = row[2]
+        fuel_source = row[6]
+        generators.add(GeneratorWithBidDataProvider(duid, region_id, csv_bid_data_provider, fuel_source))
 
-consumers = [ Consumer('Consumer 1', 'VIC', load_data_provider),
-              Consumer('Consumer 2', 'NSW', load_data_provider), ]
-
-regional_data_initialisers = { 'VIC': RegionalDataInitialiser(load_data_provider, capacity_data_provider),
-                               'NSW': RegionalDataInitialiser(load_data_provider, capacity_data_provider), }
-
-events = [ ChangeGeneratorMarkupEvent(timedelta(days=1), markup=2.5, relative=False, region='VIC'), 
-           ChangeGeneratorCapacityDataProviderEvent(timedelta(days=2), capacity_data_provider=RandomCapacityDataProvider(1000, 1500, 25, 50), region='VIC'), 
-           ChangeConsumerLoadDataProviderEvent(timedelta(days=2), load_data_provider=RandomLoadDataProvider(4000, 7000), region='NSW'), ]
+consumers = set()
+for region_id in csv_demand_forecast_data_provider.region_ids:
+    consumers.add(ConsumerWithDemandForecastDataProvider('Consumer-%s' % region_id, region_id, csv_demand_forecast_data_provider))
 
 config = {
-    'start_time': datetime.today(),
-    'end_time': datetime.today() + timedelta(days=4),
+    'start_date': csv_bid_data_provider.file_trading_day_start_date,
+    'end_date': csv_bid_data_provider.file_trading_day_end_date,
     'generators': generators,
     'consumers': consumers,
-    'regions': regions,
-    'regional_data_initialisers': regional_data_initialisers,
-    'events': events,
-    'monitor': CSVMonitor(filepath='results/example1.csv'),
+    'regions': csv_demand_forecast_data_provider.region_ids,
+    'monitor': CSVFileMonitor(file_location='results/example1.csv'),
 }
+            

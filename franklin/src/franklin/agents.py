@@ -1,191 +1,266 @@
 '''
-This module contains Franklin's agents.
+This module provides agents, such as generators and consumers, to 
+a simulation. An agent requires three functions to be used within a 
+simulation: get_initialisation_times(), step(), and handle_messages()
+(and therefore does not necessarily need to subclass Agent).
 '''
 
-from message import GenerationAmendment, LoadPrediction, Bid, Dispatch
+from messaging import GeneratorDispatchOffer, GeneratorAvailabilityRebid, DemandForecast, GeneratorDispatchNotification
 from datetime import timedelta
 
 class Agent(object):
     '''
-    Represents an agent in the NEM system
-    This is an *abstract* class.
+    Represents an agent/participant within the energy market. 
+    This is a skeleton class which has the necessary functions
+    defined for use within a simulation.
     '''
 
-    def __init__(self, id, region):
-        '''
-        Constructs a new "agent" with the given simulation.
-        Note that you shouldn't call Agent(sim), you should use
-        a subclass.
-        '''
+    def __init__(self, id, region_id):
         self.id = id
-        self.region = region
-        
+        self.region_id = region_id
+    
+    def get_initialisation_times(self, simulation):
+        '''Gets the dates and times required for this agent's step()
+        function to be called in order to initialise the agent within 
+        the market prior to a simulation commencing.'''
+        pass
+       
     def step(self, simulation):
-        '''
-        Abstract method!
-        '''
+        '''Execute the agent at this time in the simulation.'''
         pass
     
-class Generator(Agent):
+    def handle_messages(self, simulation, messages):
+        '''Process messages received from other agents.'''
+        pass
+    
+class GeneratorWithBidDataProvider(Agent):
     '''
-    Represents an electical generator, which provides
-    power to the NEM and makes money per MWh generated
+    Represents an electical generator, which provides power to the NEM and makes 
+    money per MWh generated. This type of generator has no decision making 
+    abilities; it uses a bid data provider to determine what bids to make.
     '''
     
-    def __init__(self, id, region, capacity_data_provider, gen_type=None, markup=1.0):
-        super(Generator, self).__init__(id, region)
-        assert hasattr(capacity_data_provider, 'get_cost')
-        assert hasattr(capacity_data_provider, 'get_capacity')
+    def __init__(self, id, region_id, bid_data_provider, gen_type=None):
+        super(GeneratorWithBidDataProvider, self).__init__(id, region_id)
+        assert hasattr(bid_data_provider, 'get_bids_at_offer_date')
+        assert hasattr(bid_data_provider, 'get_bids_by_offer_date_before_date')
         self.gen_type = gen_type
-        self.capacity_data_provider = capacity_data_provider
-        self.markup = markup
+        self.bid_data_provider = bid_data_provider
+    
+    def get_initialisation_times(self, simulation):
+        '''Returns the offer dates of all bids before the simulation start date.'''
+        
+        return self.bid_data_provider.get_bids_by_offer_date_before_date(self.id, simulation.start_date).keys()
     
     def step(self, simulation):
         '''
-        At each step, generators fetch their messages from the dispatcher, post
-        a bid for this time time_tomorrow and possibly revise their generating 
-        capacity for the current period.
-        
-        Returns a list of agent ids if this Generator requires other agents (or
-        itself) to run their step again in this time interval.
+        Each time step, this generator gets any dispatch offers and rebids to submit
+        at this time, and sends them as messages to the regional market operator.
         '''
-        messages = simulation.message_dispatcher.fetch_messages(self.id)
-        #self.simulation.logger.debug("%s: I got %d messages!" % (self.id, len(messages)))
         
-        time_tomorrow = simulation.time + timedelta(days=1)
-        price = self.capacity_data_provider.get_cost(self, time_tomorrow) * self.markup
-        capacity = self.capacity_data_provider.get_capacity(self, time_tomorrow)
-        simulation.message_dispatcher.send(Bid(self, time_tomorrow, capacity, price), simulation.operator_by_region[self.region].id)
+        bids = self.bid_data_provider.get_bids_at_offer_date(self.id, simulation.time)
+        if bids:
+            for bid in bids:
+                simulation.message_dispatcher.send(bid, simulation.time, simulation.operator_by_region[self.region_id].id)
         
-        return []
-    
-
-class Consumer(Agent):
+    def handle_messages(self, simulation, messages):
+        for message in messages:
+            if isinstance(message, GeneratorDispatchNotification):
+                simulation.logger.info("%s: Received notification from %s to dispatch for %.2fMW" % (self.id, message.sender_id, message.demand_to_supply))
+                
+        
+class ConsumerWithDemandForecastDataProvider(Agent):
     '''
-    Represents an electrical consumer, which consumes power from the grid and
-    reports (predicted) load data to AEMO
+    Represents an electrical consumer that consumes power from the grid and
+    reports predicted demand for the day ahead to the regional market operator. 
+    This type of consumer uses a demand forecast data provider to determine demand 
+    predictions.
     '''
     
-    def __init__(self, id, region, load_data_provider):
-        super(Consumer, self).__init__(id, region)
-        assert hasattr(load_data_provider, 'get_load')
-        self.load_data_provider = load_data_provider
+    def __init__(self, id, region_id, demand_forecast_data_provider):
+        super(ConsumerWithDemandForecastDataProvider, self).__init__(id, region_id)
+        assert hasattr(demand_forecast_data_provider, 'get_demand_forecast')
+        self.demand_forecast_data_provider = demand_forecast_data_provider
+        
+    def get_initialisation_times(self, simulation):
+        '''Returns 24 hours worth of dispatch interval times for the day before the simulation start date.
+        This will be required to seed the simulation's first trading day with a demand forecast per 
+        dispatch interval.'''
+        
+        initialisation_times = set()
+        time = simulation.start_date - timedelta(days=1)
+        while time < simulation.start_date:
+            initialisation_times.add(time)
+            time += timedelta(minutes=AEMOperator.DISPATCH_INTERVAL_DURATION_MINUTES)
+        return initialisation_times
     
     def step(self, simulation):
         '''
-        At each step, consumers fetch their messages from the dispatcher, and
-        submit an estimate for the load requirements for time_tomorrow
-        
-        Returns a list of agent ids if this Consumer requires other agents (or
-        itself) to run their step again in this time interval.
+        Each time step, this consumer gets its forecasted demand for 24 hours
+        from the current trading interval time, and send it as a message to the 
+        regional market operator.
         '''
-        messages = simulation.message_dispatcher.fetch_messages(self.id)
-        #self.simulation.logger.debug("%s: I got %d messages!" % (self.id, len(messages)))
         
-        time_tomorrow = simulation.time + timedelta(days=1)
-        load_tomorrow = self.load_data_provider.get_load(time_tomorrow) * self.dist_share(simulation.consumers_by_region[self.region], time_tomorrow)
-        simulation.message_dispatcher.send(LoadPrediction(self, time_tomorrow, load_tomorrow), simulation.operator_by_region[self.region].id)
-        
-        return []
+        if simulation.time.minute % AEMOperator.DISPATCH_INTERVAL_DURATION_MINUTES == 0:
+            demand_forecast_tomorrow = self.demand_forecast_data_provider.get_demand_forecast(self.region_id, simulation.time)
+            if demand_forecast_tomorrow:
+                simulation.message_dispatcher.send(DemandForecast(self.id, simulation.time + timedelta(days=1), demand_forecast_tomorrow), simulation.time, simulation.operator_by_region[self.region_id].id)
     
-    def dist_share(self, consumers, time):
-        return 1 / float(len(consumers))
+    def handle_messages(self, simulation, messages):
+        pass
 
 class AEMOperator(Agent):
     '''
-    The AEMOperator agent receives bids from generators and load requirements from
-    consumers. It then schedules generators to generate power, based on the best
-    cost schedule.
+    The AEMOperator agent receives bids from generators and demand/load requirements from
+    consumers. Each dispatch interval it schedules generators to generate power, based on 
+    the best price schedule to meet the demand.
     '''
     
-    INTERVAL_DURATION_MINUTES = 5
-    INTERVALS_PER_TRADING_PERIOD = 6
-    DAILY_TRADING_START_HOUR = 4
+    DISPATCH_INTERVAL_DURATION_MINUTES = 5
+    DISPATCH_INTERVALS_PER_TRADING_INTERVAL = 6
+    SECOND_HOURLY_TRADING_INTERVAL_END_MINUTE = 0
+    FIRST_HOURLY_TRADING_INTERVAL_END_MINUTE = 30
+    TRADING_DAY_SETTLEMENT_HOUR = 0
+    TRADING_DAY_SETTLEMENT_MINUTE = 0
+    TRADING_DAY_START_HOUR = 4
+    TRADING_DAY_START_MINUTE = 0
+    DAILY_DISPATCH_OFFER_CUTOFF_HOUR = 12
+    DAILY_DISPATCH_OFFER_CUTOFF_MINUTE = 30
+    MARKET_PRICE_CAP = 12500.
+    MARKET_FLOOR_CAP = -1000.
+    NUM_PRICE_BANDS = 10
     
     def __init__(self, id, region):
         super(AEMOperator, self).__init__(id, region)
-        self.bids_by_time = {} #bids stored in a dict. key = time, value = a list of bids for that time.
-        self.load_predictions_by_time = {} #load predictions stored in a dict. key = time, value = load prediction for that time.
-        self.interval_prices_by_time = {} #interval prices stored in a dict. key = time, value = interval price at that time.
-        self.load_supplied_by_time = {} #loads supplied stored in a dict. key = time, value = load supplied at that time.
-        
-    def initialise(self, simulation, capacity_data_provider, load_data_provider):
-        #seed the operator with day zero load and bid data
-        time = simulation.start_time
-        while time < simulation.start_time + timedelta(days=1):
-            for generator in simulation.generators_by_region[self.region]:
-                capacity = capacity_data_provider.get_capacity(generator, time)
-                price = capacity_data_provider.get_cost(generator, time)
-                self._handle_bid(Bid(generator, time, capacity, price * generator.markup))
-            self._handle_load_prediction(LoadPrediction(None, time, load_data_provider.get_load(time)))
-            time += timedelta(minutes=self.INTERVAL_DURATION_MINUTES)
+        self.dispatch_offer_by_settlement_date_by_generator_id = {} #generator ids mapped to settlement dates mapped to a dispatch offer
+        self.demand_forecasts_by_dispatch_interval_date = {} #demand forecasts stored in a dict. key = time, value = demand forecast for that time.
+        self.prices_by_dispatch_interval_date = {} #interval prices stored in a dict. key = time, value = interval price at that time.
+        self.demand_supplied_by_dispatch_interval_date = {} #demand amount supplied stored in a dict. key = time, value = demand supplied at that dispatch interval.
     
-    def process_schedule(self, simulation):
-        simulation.logger.info("%s's schedule:" % self.id)
-        if simulation.time in self.load_predictions_by_time and simulation.time in self.bids_by_time:
-            #get the load and bids for this interval
-            total_load = sum(load_prediction.watts for load_prediction in self.load_predictions_by_time[simulation.time])
-            bids = self.bids_by_time[simulation.time]
+    def get_initialisation_times(self, simulation):
+        return []
+    
+    def step(self, simulation, schedule_before_simulation_start=False):
+        '''Each time step, this agent processes its dispatch schedule if
+        the simulation time is currently at a dispatch interval.'''
+        
+        if (simulation.time >= simulation.start_date or schedule_before_simulation_start) and simulation.time.minute % self.DISPATCH_INTERVAL_DURATION_MINUTES == 0:
+            self._process_dispatch_schedule(simulation)
+    
+    def _process_dispatch_schedule(self, simulation):
+        '''Determines which generators to dispatch at this dispatch interval to meet the 
+        consumer demand/load using a stack-based pricing model (i.e. generators are dispatched 
+        in order of lowest price).'''        
+        
+        if simulation.time in self.demand_forecasts_by_dispatch_interval_date:
+            #determine the current trading interval's end date #FIXME: a bit excessive calling this every dispatch interval. needs refactoring too.
+            if 0 < simulation.time.minute <= self.FIRST_HOURLY_TRADING_INTERVAL_END_MINUTE:
+                current_trading_interval_end_date = simulation.time.replace(minute=self.FIRST_HOURLY_TRADING_INTERVAL_END_MINUTE)
+            elif simulation.time.minute == self.SECOND_HOURLY_TRADING_INTERVAL_END_MINUTE:
+                current_trading_interval_end_date = simulation.time
+            else:
+                current_trading_interval_end_date = simulation.time.replace(minute=self.SECOND_HOURLY_TRADING_INTERVAL_END_MINUTE) + timedelta(hours=1)
             
-            #determine which generators get dispatched for this interval based on their price
-            simulation.logger.info(" * Generators dispatched:")
-            total_load_supplied = 0
-            for bid in sorted(bids, key=lambda bid: bid.price):
-                load_to_supply = min(bid.watts, total_load - total_load_supplied)
-                total_load_supplied += load_to_supply
-                simulation.logger.info("   * %s for %dMW" % (bid.sender.id, load_to_supply))
-                simulation.message_dispatcher.send(Dispatch(self, simulation.time, load_to_supply), bid.sender.id)
-                if total_load_supplied >= total_load:
+            #determine the trading day's settlement date (used to get today's bids)
+            trading_day_settlement_date = simulation.time.replace(hour=self.TRADING_DAY_SETTLEMENT_HOUR, minute=self.TRADING_DAY_SETTLEMENT_MINUTE)
+            if simulation.time.hour < self.TRADING_DAY_START_HOUR or (simulation.time.hour == self.TRADING_DAY_START_HOUR and simulation.time.minute == 0):
+                trading_day_settlement_date -= timedelta(days=1)
+            
+            #using the settlement date, get all price offers submitted for this trading day
+            dispatch_offers = set()
+            for generator in self.dispatch_offer_by_settlement_date_by_generator_id:
+                if trading_day_settlement_date in self.dispatch_offer_by_settlement_date_by_generator_id[generator]:
+                    dispatch_offers.add(self.dispatch_offer_by_settlement_date_by_generator_id[generator][trading_day_settlement_date])
+            
+            #get the total demand for this dispatch interval
+            total_demand = sum(demand_forecast.demand for demand_forecast in self.demand_forecasts_by_dispatch_interval_date[simulation.time])
+            
+            #using stack-based pricing, determine the dispatch schedule for generators
+            total_demand_supplied = 0
+            dispatch_interval_price = 0
+            demand_generated_by_duid = {} #maps a generator id to the demand it will be dispatched to generate
+            for price_band_no in xrange(self.NUM_PRICE_BANDS):
+                total_demand_supplied = 0
+                dispatch_interval_price = 0
+                demand_generated_by_duid.clear()
+                #determine which generators get dispatched for this interval based on their price
+                for dispatch_offer in sorted(dispatch_offers, key=lambda dispatch_offer: dispatch_offer.price_per_band[price_band_no]):
+                    availability_bid = dispatch_offer.availability_bid_by_trading_interval_date[current_trading_interval_end_date]
+                    #availability = availability_bid.availability_per_band[price_band_no]
+                    availability = sum(availability_bid.availability_per_band[:price_band_no+1])
+                    #availability = min(sum(availability_bid.availability_per_band[:price_band_no+1]), availability_bid.max_availability)
+                    if availability > 0:
+                        demand_to_supply = min(availability, total_demand - total_demand_supplied)
+                        total_demand_supplied += demand_to_supply
+                        demand_generated_by_duid[dispatch_offer.sender_id] = demand_to_supply
+                        dispatch_interval_price = dispatch_offer.price_per_band[price_band_no]
+                        if total_demand_supplied >= total_demand:
+                            break
+                    else:
+                        #FIXME: what to do here?
+                        pass
+                
+                if total_demand_supplied >= total_demand:
                     break
             
-            simulation.logger.info(" * Total load supplied: %dMW of %dMW (%.2f%%)" % (total_load_supplied, total_load, (100*total_load_supplied / total_load)))
-            self.load_supplied_by_time[simulation.time] = total_load_supplied
+            #send dispatch notifications
+            for duid,demand_to_generate in demand_generated_by_duid.items():
+                simulation.message_dispatcher.send(GeneratorDispatchNotification(self.id, simulation.time, demand_to_generate), simulation.time, duid)
             
-            simulation.logger.info(" * Interval price: $%.2f" % bid.price)
-            self.interval_prices_by_time[simulation.time] = bid.price
+            self.demand_supplied_by_dispatch_interval_date[simulation.time] = total_demand_supplied
+            self.prices_by_dispatch_interval_date[simulation.time] = dispatch_interval_price
+            simulation.logger.info("%s: Dispatch interval schedule -> demand supplied = %.2fMW of %.2fMW, price = $%.2f (band %d)" % (self.id, total_demand_supplied, total_demand, dispatch_interval_price, price_band_no))
             
-            #calculate the spot price (average interval price) if this is the last interval in the trading period
-            if (simulation.time.minute / self.INTERVAL_DURATION_MINUTES) % self.INTERVALS_PER_TRADING_PERIOD == 0:
-                interval_prices = set()
+            #calculate the spot price (average dispatch interval price) if this is the last dispatch interval in the trading interval
+            if simulation.time.minute == self.SECOND_HOURLY_TRADING_INTERVAL_END_MINUTE or simulation.time.minute == self.FIRST_HOURLY_TRADING_INTERVAL_END_MINUTE:
+                dispatch_interval_prices = []
                 sufficient_interval_prices = True
-                for i in range(self.INTERVALS_PER_TRADING_PERIOD):
-                    interval_time = simulation.time - timedelta(minutes=self.INTERVAL_DURATION_MINUTES * i)
-                    if interval_time in self.interval_prices_by_time:
-                        interval_prices.add(self.interval_prices_by_time[interval_time])
+                for i in xrange(self.DISPATCH_INTERVALS_PER_TRADING_INTERVAL):
+                    dispatch_interval_time = simulation.time - timedelta(minutes=self.DISPATCH_INTERVAL_DURATION_MINUTES * i)
+                    if dispatch_interval_time in self.prices_by_dispatch_interval_date:
+                        dispatch_interval_prices.append(self.prices_by_dispatch_interval_date[dispatch_interval_time])
                     else:
                         sufficient_interval_prices = False
                         break
                         
                 if sufficient_interval_prices:
-                    spot_price = sum(interval_prices) / self.INTERVALS_PER_TRADING_PERIOD
-                    simulation.logger.info(" * Trading period finished, spot price: $%.2f" % spot_price)
+                    spot_price = max(self.MARKET_FLOOR_CAP, min(self.MARKET_PRICE_CAP, sum(dispatch_interval_prices) / self.DISPATCH_INTERVALS_PER_TRADING_INTERVAL))
+                    simulation.logger.info("%s: Trading interval finished -> spot price = $%.2f" % (self.id, spot_price))
                 else:
-                    simulation.logger.info(" * Trading period %d finished, insufficient interval price data to calculate spot price" % (simulation.time.minute / self.INTERVALS_PER_TRADING_PERIOD))
+                    simulation.logger.info("%s: Trading interval %d finished; insufficient dispatch interval price data to calculate spot price." % (self.id, simulation.time.minute / self.DISPATCH_INTERVALS_PER_TRADING_INTERVAL))
         else:
-            simulation.logger.info("No load and/or bid data for this time interval.")
-            
+            simulation.logger.info("%s: No load and/or bid data for this trading interval." % self.id)
     
-    def step(self, simulation):
-        messages = simulation.message_dispatcher.fetch_messages(self.id)
-        #simulation.logger.debug("%s: I got %d messages!" % (self.id, len(messages)))
+    def handle_messages(self, simulation, messages):
         for message in messages:
-            if isinstance(message, Bid):
-                self._handle_bid(message)
-            elif isinstance(message, GenerationAmendment):
-                self._handle_generation_amendment(message)
-            elif isinstance(message, LoadPrediction):
-                self._handle_load_prediction(message)
+            if isinstance(message, GeneratorDispatchOffer):
+                self._handle_dispatch_offer(message, simulation)
+            elif isinstance(message, GeneratorAvailabilityRebid):
+                self._handle_availability_rebid(message, simulation)
+            elif isinstance(message, DemandForecast):
+                self._handle_demand_forecast(message, simulation)
             else:
                 #unrecognised!
-                self.simulation.logger.warning("%s received unknown message type, " % (self.id) + type(message))
+                simulation.logger.warning("%s: received unknown message type (%s)." % (self.id, type(message)))
+    
+    def _handle_dispatch_offer(self, dispatch_offer, simulation):
+        cut_off_date = (dispatch_offer.settlement_date - timedelta(days=1)).replace(hour=self.DAILY_DISPATCH_OFFER_CUTOFF_HOUR, minute=self.DAILY_DISPATCH_OFFER_CUTOFF_MINUTE)
+        if simulation.time < cut_off_date:
+            self.dispatch_offer_by_settlement_date_by_generator_id.setdefault(dispatch_offer.sender_id, {})[dispatch_offer.settlement_date] = dispatch_offer
+            simulation.logger.info('%s: Received dispatch offer from %s.' % (self.id, dispatch_offer.sender_id))
+        else:
+            simulation.logger.info('%s: Rejected dispatch offer from %s (received after daily cut-off time).' % (self.id, dispatch_offer.sender_id))
+    
+    def _handle_availability_rebid(self, availability_rebid, simulation):
+        #TODO: AEMO needs to reject any availability re-bids for a trading interval less than 5 minutes away
+        if availability_rebid.sender_id in self.dispatch_offer_by_settlement_date_by_generator_id and \
+           availability_rebid.settlement_date in self.dispatch_offer_by_settlement_date_by_generator_id[availability_rebid.sender_id]:
+            #replace the dispatch offer's reference to the availability bids per trading interval
+            self.dispatch_offer_by_settlement_date_by_generator_id[availability_rebid.sender_id][availability_rebid.settlement_date].availability_bid_by_trading_interval_date = availability_rebid.availability_bid_by_trading_interval_date
+            simulation.logger.info('%s: Received availability re-bid from %s for trading day %s. Explanation: %s' % (self.id, availability_rebid.sender_id, availability_rebid.settlement_date, availability_rebid.rebid_explanation))
+        else:
+            simulation.logger.info('%s: Rejected availability re-bid from %s for trading day %s (no original dispatch offer received for this trading day).' % (self.id, availability_rebid.settlement_date, availability_rebid.sender_id))
+
+    def _handle_demand_forecast(self, demand_forecast, simulation):
+        self.demand_forecasts_by_dispatch_interval_date.setdefault(demand_forecast.dispatch_interval_date, set()).add(demand_forecast)
             
-        return []
-    
-    def _handle_generation_amendment(self, generation_amendment):
-        pass
-    
-    def _handle_bid(self, bid):
-        self.bids_by_time.setdefault(bid.time, set()).add(bid)
-    
-    def _handle_load_prediction(self, load_prediction):
-        self.load_predictions_by_time.setdefault(load_prediction.time, set()).add(load_prediction)

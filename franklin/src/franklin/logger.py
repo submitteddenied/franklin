@@ -1,10 +1,15 @@
-import sys, logging
+'''
+This module defines logging classes that can be used within a simulation to log
+events as they occur.
+'''
+
+import logging, sys
     
-class Logger(object):
-    '''Performs logging!'''
+class BasicFileLogger(object):
+    '''Logs output to a file or output stream.'''
     
-    def __init__(self):
-        logging.basicConfig(file=sys.stdout,level=logging.DEBUG, format='%(message)s')
+    def __init__(self, file=None):
+        logging.basicConfig(stream=sys.stdout, file=file,level=logging.DEBUG, format='%(message)s')
     
     def debug(self, msg):
         logging.debug(msg)
@@ -20,15 +25,5 @@ class Logger(object):
         
     def critical(self, msg):
         logging.critical(msg)
-        
-    def _logline(self, line):
-        logging.info(line)
-        
-    def output(self, lines):
-        if isinstance(lines, list):
-            for l in lines:
-                self._logline(l)
-        else:
-            self._logline(lines)
     
         

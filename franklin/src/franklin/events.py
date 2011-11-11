@@ -1,75 +1,39 @@
 '''
-Created on 07/10/2011
-
-@author: Luke Horvat
+This module defines event classes that can be activated at specific times within
+a simulation, modifying and manipulating the the simulation in some manner.
 '''
 
-from agents import Generator, Consumer
-
 class SimulationEvent(object):
+    '''Provides a basic skeleton for event classes to inherit from.'''
     
     def __init__(self, name, time_delta):
         self.name = name
         self.time_delta = time_delta #the relative time difference from the start time of the simulation
     
     def process_event(self, simulation):
+        '''Activates and runs the event, modifying the specified simulation
+        in some manner.'''
         pass
 
     def __str__(self):
         return "<Event: %s>" % self.name
 
-class ChangeGeneratorMarkupEvent(SimulationEvent):
+class ChangeConsumerDemandForecastDataProviderEvent(SimulationEvent):
     '''
-    An event that changes the markup value for a
-    specified type of generator in a region (or 
-    all generators and regions if not specified).
+    An event that changes the demand forecast data provider for consumers in a region. 
+    Only operates on consumers that have a demand_forecast_data_provider attribute
+    (e.g. the ConsumerWithDemandForecastDataProvider type).
     '''
     
-    def __init__(self, time_delta, markup, relative, region, gen_type=None):
-        super(ChangeGeneratorMarkupEvent, self).__init__('Change Generator Markup (value=%0.2f, relative=%s)' % (markup, relative), time_delta)
-        self.markup = markup
-        self.relative = relative
-        self.gen_type = gen_type
-        self.region = region
+    def __init__(self, time_delta, demand_forecast_data_provider, region_id):
+        super(ChangeConsumerDemandForecastDataProviderEvent, self).__init__('Change Consumer Demand Forecast Data Provider (value=%s)', time_delta)
+        self.demand_forecast_data_provider = demand_forecast_data_provider
+        self.region_id = region_id
     
     def process_event(self, simulation):
-        for generator in simulation.generators_by_region[self.region]:
-            if hasattr(generator, 'capacity_data_provider') and \
-            (not self.gen_type or (hasattr(generator, 'gen_type') and generator.gen_type and generator.gen_type == self.gen_type)):
-                generator.markup = generator.markup + self.markup if self.relative else self.markup
-
-class ChangeGeneratorCapacityDataProviderEvent(SimulationEvent):
-    '''
-    An event that changes the capacity data for a
-    specified type of generator in a region (or 
-    all generators and regions if not specified).
-    '''
-    
-    def __init__(self, time_delta, capacity_data_provider, region, gen_type=None):
-        super(ChangeGeneratorCapacityDataProviderEvent, self).__init__('Change Generator Capacity Data Generator (value=%s)' % capacity_data_provider, time_delta)
-        self.capacity_data_provider = capacity_data_provider
-        self.gen_type = gen_type
-        self.region = region
-    
-    def process_event(self, simulation):
-        for generator in simulation.generators_by_region[self.region]:
-            if hasattr(generator, 'capacity_data_provider') and \
-            (not self.gen_type or (hasattr(generator, 'gen_type') and generator.gen_type and generator.gen_type == self.gen_type)):
-                generator.capacity_data_provider = self.capacity_data_provider
-
-class ChangeConsumerLoadDataProviderEvent(SimulationEvent):
-    '''
-    An event that changes the load data
-    generator for consumers in a region (or 
-    all regions if not specified).
-    '''
-    
-    def __init__(self, time_delta, load_data_provider, region):
-        super(ChangeConsumerLoadDataProviderEvent, self).__init__('Change Consumer Load Data Generator (value=%s)', time_delta)
-        self.load_data_provider = load_data_provider
-        self.region = region
-    
-    def process_event(self, simulation):
-        for consumer in simulation.consumers_by_region[self.region]:
-            if hasattr(consumer, 'load_data_provider'):
-                consumer.load_data_provider = self.load_data_provider
+        '''Replaces the demand forecast data provider for consumers
+        that use one in this region.'''
+        
+        for consumer in simulation.consumers_by_region[self.region_id]:
+            if hasattr(consumer, 'demand_forecast_data_provider'):
+                consumer.demand_forecast_data_provider = self.demand_forecast_data_provider
