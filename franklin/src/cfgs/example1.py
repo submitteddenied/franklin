@@ -1,5 +1,5 @@
 from franklin.data_providers import CSVPublicPricesDataProvider, CSVPublicYestBidDataProvider
-from franklin.monitors import CSVFileMonitor
+from franklin.data_monitors import CSVFileMonitor
 from franklin.agents import GeneratorWithBidDataProvider, ConsumerWithDemandForecastDataProvider
 from csv import reader
 
@@ -29,6 +29,6 @@ config = {
     'generators': generators,
     'consumers': consumers,
     'regions': csv_demand_forecast_data_provider.region_ids,
-    'monitor': CSVFileMonitor(file_location='results/example1.csv'),
+    'data_monitor': CSVFileMonitor(file_location='../results/example1.csv'),
 }
             

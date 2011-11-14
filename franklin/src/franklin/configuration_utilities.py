@@ -71,7 +71,7 @@ CONFIG_SYNTAX = {
         'post-processor': lambda x: set(x), #convert to set to remove duplicates
         'default': set(),
     },
-    'monitor': {
+    'data_monitor': {
         'pre-validator': lambda x: _has_attributes(x, 'log_run'),
     },
     'logger': {
@@ -183,5 +183,5 @@ def run_simulation_with_config(config_dict):
                             config_dict['generators'], config_dict['consumers'], config_dict['events'])
     simulation.run()
     
-    #log the run via the monitor
-    config_dict['monitor'].log_run(simulation)
+    #log the run data via the data monitor
+    config_dict['data_monitor'].log_run(simulation)

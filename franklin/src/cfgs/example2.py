@@ -1,8 +1,7 @@
 from franklin.data_providers import MathApproximationDemandForecastDataProvider, RandomDemandForecastDataProvider, CSVPublicYestBidDataProvider
-from franklin.monitors import CSVFileMonitor
+from franklin.data_monitors import CSVFileMonitor
 from franklin.agents import GeneratorWithBidDataProvider, ConsumerWithDemandForecastDataProvider
 from csv import reader
-from datetime import timedelta
 
 '''
 EXAMPLE USAGE: python main.py -c cfgs/example2
@@ -30,6 +29,6 @@ config = {
     'generators': generators,
     'consumers': consumers,
     'regions': [ 'VIC1', 'NSW1' ],
-    'monitor': CSVFileMonitor(file_location='results/example2.csv'),
+    'data_monitor': CSVFileMonitor(file_location='../results/example2.csv'),
 }
             
