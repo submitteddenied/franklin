@@ -47,7 +47,7 @@ class GeneratorAvailabilityBid(Message):
         
         def __init__(self, availability_per_band, trading_interval_date, max_availability, physical_availability, rate_of_change_up_per_min, rate_of_change_down_per_min):
             self.availability_per_band = availability_per_band #availability per price band
-            self.dispatch_interval_date = trading_interval_date #the trading interval this bid applies to
+            self.trading_interval_date = trading_interval_date #the trading interval this bid applies to
             self.max_availability = max_availability  #TODO: determine when this is used
             self.physical_availability = physical_availability #the physical plant capability (MW) #TODO: determine what this is used for
             self.rate_of_change_up_per_min = rate_of_change_up_per_min #MW per min for energy raise #TODO: determine what this is used for
