@@ -25,15 +25,36 @@ class CSVFileMonitor(object):
         if not os.path.exists(directory):
             os.makedirs(directory)
         
-        #write data to file
+        #open file
         file_writer = writer(open(self.file_location, 'wb'))
-        file_writer.writerow(['REGION_ID', 'DISPATCH_INTERVAL', 'PRICE', 'DEMAND_SUPPLIED', 'TOTAL_DEMAND'])
+        
+        #write trading interval data to file
+        file_writer.writerow(['INTERVAL_TYPE', 'REGION_ID', 'TRADING_INTERVAL', 'SPOT_PRICE', 'DEMAND_SUPPLIED', 'TOTAL_DEMAND', 'GENERATORS_DISPATCHED'])
         for operator in simulation.operator_by_region.values():
             time = simulation.start_date
-            while time <= simulation.end_date:
-                dispatch_interval_price = operator.prices_by_dispatch_interval_date.get(time, 0)
-                demand_supplied = operator.demand_supplied_by_dispatch_interval_date.get(time, 0)
-                total_demand = sum(demand_forecast.demand for demand_forecast in operator.demand_forecasts_by_dispatch_interval_date[time]) if time in operator.demand_forecasts_by_dispatch_interval_date else 0
-                file_writer.writerow([operator.region_id, time.strftime(self.DATE_TIME_FORMAT), dispatch_interval_price, demand_supplied, total_demand])
-                time += timedelta(minutes=AEMOperator.DISPATCH_INTERVAL_DURATION_MINUTES)
+            while time < simulation.end_date:
+                time += timedelta(minutes=AEMOperator.DISPATCH_INTERVAL_DURATION_MINUTES * AEMOperator.DISPATCH_INTERVALS_PER_TRADING_INTERVAL)
+                if time in operator.trading_interval_info_by_date:
+                    trading_interval_info_by_date = operator.trading_interval_info_by_date[time]
+                    file_writer.writerow(['TRADING', operator.region_id, time.strftime(self.DATE_TIME_FORMAT), trading_interval_info_by_date.spot_price, 
+                                          trading_interval_info_by_date.total_demand_supplied, trading_interval_info_by_date.total_demand, 
+                                          self._format_iterable_for_csv(trading_interval_info_by_date.generator_ids_dispatched)])
+                else:
+                    file_writer.writerow(['TRADING', operator.region_id, time.strftime(self.DATE_TIME_FORMAT), 'N/A', 'N/A', 'N/A', 'N/A'])
         
+        #write dispatch interval data to file
+        file_writer.writerow(['INTERVAL_TYPE', 'REGION_ID', 'DISPATCH_INTERVAL', 'PRICE', 'PRICE_BAND_NO', 'DEMAND_SUPPLIED', 'TOTAL_DEMAND', 'GENERATORS_DISPATCHED'])
+        for operator in simulation.operator_by_region.values():
+            time = simulation.start_date
+            while time < simulation.end_date:
+                time += timedelta(minutes=AEMOperator.DISPATCH_INTERVAL_DURATION_MINUTES)
+                if time in operator.dispatch_interval_info_by_date:
+                    dispatch_interval_info = operator.dispatch_interval_info_by_date[time]
+                    file_writer.writerow(['DISPATCH', operator.region_id, time.strftime(self.DATE_TIME_FORMAT), dispatch_interval_info.price, 
+                                          dispatch_interval_info.price_band_no+1, dispatch_interval_info.total_demand_supplied, 
+                                          dispatch_interval_info.total_demand, self._format_iterable_for_csv(dispatch_interval_info.generator_ids_dispatched)])
+                else:
+                    file_writer.writerow(['DISPATCH', operator.region_id, time.strftime(self.DATE_TIME_FORMAT), 'N/A', 'N/A', 'N/A', 'N/A', 'N/A'])
+    
+    def _format_iterable_for_csv(self, iterable):
+        return ','.join(iterable)

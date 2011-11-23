@@ -6,13 +6,13 @@ to a simulation.
 from agents import AEMOperator
 from messaging import GeneratorDispatchOffer, GeneratorAvailabilityRebid, GeneratorAvailabilityBid
 from datetime import datetime, timedelta
+from collections import namedtuple
 from csv import reader
 
 class CSVPublicYestBidDataProvider(object):
     '''Provides bid data from a specified PUBLIC_YESTBID file, found at
     http://www.nemweb.com.au/REPORTS/CURRENT/Yesterdays_Bids_Reports/'''
     
-    SUBMIT_OFFERS_HOUR = 4
     FILE_PUBLISH_DATE_FORMAT = '%Y/%m/%d'
     BID_DATE_FORMAT = '%Y/%m/%d %H:%M:%S'
     REPORT_CONTAINER_ROW_ID_CHAR = 'C'
@@ -152,6 +152,8 @@ class CSVPublicPricesDataProvider(object):
     '''Provides pricing and demand data from a specified PUBLIC_PRICES file, found at
     http://www.nemweb.com.au/REPORTS/CURRENT/Public_Prices/'''
     
+    DispatchPriceInfo = namedtuple('DispatchPriceInfo', 'price settlement_date total_demand demand_forecast dispatchable_generation dispatchable_load')
+    
     FILE_PUBLISH_DATE_FORMAT = '%Y/%m/%d'
     BID_DATE_FORMAT = '%Y/%m/%d %H:%M:%S'
     REPORT_CONTAINER_ROW_ID_CHAR = 'C'
@@ -227,23 +229,10 @@ class CSVPublicPricesDataProvider(object):
             return self._price_info_by_dispatch_interval_date_by_region_id[region_id][dispatch_interval_date].total_demand
         else:
             return None
-        
     
     @property
     def region_ids(self):
         return self._price_info_by_dispatch_interval_date_by_region_id.keys()
-    
-    class DispatchPriceInfo(object):
-        '''A container class for pricing and demand information at a particular time. 
-        Only used internally by this data provider.'''
-        
-        def __init__(self, price, settlement_date, total_demand, demand_forecast, dispatchable_generation, dispatchable_load):
-            self.price = price
-            self.settlement_date = settlement_date
-            self.total_demand = total_demand
-            self.demand_forecast = demand_forecast
-            self.dispatchable_generation = dispatchable_generation
-            self.dispatchable_load = dispatchable_load
 
 class MathApproximationDemandForecastDataProvider(object):
     '''

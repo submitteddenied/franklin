@@ -1,1 +1,9 @@
-This is a readme.
+Franklin - A Simulator for Australia's National Electricity Market (NEM)
+
+For the latest version of Franklin, please refer to the Git repository at this URL: 
+http://www.github.com/emjay1988/franklin
+
+To execute a Franklin simulation configuration at the command line, try the following:
+python main.py -c <my_config_path>
+
+Psyco and cProfile can also be configured at the command line using the -o and -p parameters respectively.
