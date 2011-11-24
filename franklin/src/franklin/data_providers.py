@@ -49,8 +49,8 @@ class CSVPublicYestBidDataProvider(object):
     BID_ENTRY_TYPE_INDEX = 32
         
     def __init__(self, file_location, replace_earliest_offer_if_rebid=True):
-        self.file_trading_day_start_date = None
-        self.file_trading_day_end_date = None
+        self.start_date = None
+        self.end_date = None
         self.bid_by_offer_date_by_duid = {} #duid mapped to an offer date mapped to a dispatch offer or availability re-bid.
         
         #maintain a dictionary of duids mapped to a tuple of earliest offer date and earliest dispatch offer
@@ -64,8 +64,8 @@ class CSVPublicYestBidDataProvider(object):
         #read each row in the data file
         for row in reader(open(file_location, 'rb')):
             if row[self.ROW_ID_INDEX] == self.REPORT_CONTAINER_ROW_ID_CHAR and row[self.END_OF_REPORT_INDEX] != self.END_OF_REPORT_STR:
-                self.file_trading_day_end_date = datetime.strptime(row[self.FILE_PUBLISH_DATE_INDEX], self.FILE_PUBLISH_DATE_FORMAT).replace(hour=AEMOperator.TRADING_DAY_START_HOUR, minute=AEMOperator.TRADING_DAY_START_MINUTE, second=0, microsecond=0)
-                self.file_trading_day_start_date = self.file_trading_day_end_date - timedelta(days=1)
+                self.end_date = datetime.strptime(row[self.FILE_PUBLISH_DATE_INDEX], self.FILE_PUBLISH_DATE_FORMAT).replace(hour=AEMOperator.TRADING_DAY_START_HOUR, minute=AEMOperator.TRADING_DAY_START_MINUTE, second=0, microsecond=0)
+                self.start_date = self.end_date - timedelta(days=1)
             
             elif row[self.ROW_ID_INDEX] == self.DATA_ROW_ID_CHAR:
                 if row[self.BID_TYPE_INDEX] == self.ENERGY_BID_TYPE:
@@ -84,7 +84,7 @@ class CSVPublicYestBidDataProvider(object):
                         #or is it a default dispatch bid? (i.e. an offer that applies where no daily bid has been made)
                         if bid_entry_type == self.DAILY_OFFER_ENTRY_TYPE or bid_entry_type == self.DEFAULT_OFFER_ENTRY_TYPE:
                             price_per_band = [ float(row[i]) for i in xrange(self.PRICE_BAND1_INDEX, self.PRICE_BAND10_INDEX + 1) ]
-                            dispatch_offer = GeneratorDispatchOffer(duid, settlement_date, price_per_band, {})
+                            dispatch_offer = GeneratorDispatchOffer(duid, settlement_date, price_per_band)
                             self.bid_by_offer_date_by_duid.setdefault(duid, {})[bid_offer_date] = dispatch_offer
                             
                             if replace_earliest_offer_if_rebid and (duid not in earliest_offer_date_and_offer_by_duid or bid_offer_date < earliest_offer_date_and_offer_by_duid[duid][0]):
@@ -93,13 +93,13 @@ class CSVPublicYestBidDataProvider(object):
                         #is it an availability rebid? (i.e. submitted after yesterday's 12:30pm cut-off time)
                         elif bid_entry_type == self.REBID_OFFER_ENTRY_TYPE:
                             rebid_explanation = row[self.REBID_EXPLANATION_INDEX]
-                            availability_rebid = GeneratorAvailabilityRebid(duid, settlement_date, rebid_explanation, {})
+                            availability_rebid = GeneratorAvailabilityRebid(duid, settlement_date, rebid_explanation)
                             self.bid_by_offer_date_by_duid.setdefault(duid, {})[bid_offer_date] = availability_rebid
                             
                             if replace_earliest_offer_if_rebid and (duid not in earliest_offer_date_and_offer_by_duid or bid_offer_date < earliest_offer_date_and_offer_by_duid[duid][0]):
                                 #create a dispatch offer in the event that this generator has no daily or default offers. it will replace this rebid.
                                 price_per_band = [ float(row[i]) for i in xrange(self.PRICE_BAND1_INDEX, self.PRICE_BAND10_INDEX + 1) ]
-                                dispatch_offer = GeneratorDispatchOffer(duid, settlement_date, price_per_band, {})
+                                dispatch_offer = GeneratorDispatchOffer(duid, settlement_date, price_per_band)
                                 earliest_offer_date_and_offer_by_duid[duid] = (bid_offer_date, dispatch_offer)
                     
                     #is it a row containing availability bid per trading interval data?
@@ -110,7 +110,7 @@ class CSVPublicYestBidDataProvider(object):
                         physical_availability = float(row[self.PASAAVAILABILITY_INDEX])
                         rate_of_change_up_per_min = float(row[self.RATE_OF_CHANGE_UP_PER_MIN_INDEX])
                         rate_of_change_down_per_min = float(row[self.RATE_OF_CHANGE_DOWN_PER_MIN_INDEX])
-                        availability_bid = GeneratorAvailabilityBid.TradingIntervalAvailabilityBid(availability_per_band, trading_interval_date, max_availability, physical_availability, rate_of_change_up_per_min, rate_of_change_down_per_min)
+                        availability_bid = GeneratorAvailabilityBid.TradingIntervalAvailabilityBid(availability_per_band, max_availability, physical_availability, rate_of_change_up_per_min, rate_of_change_down_per_min)
                         #add a reference to this trading interval availability bid to the bid at this offer date
                         self.bid_by_offer_date_by_duid[duid][bid_offer_date].availability_bid_by_trading_interval_date[trading_interval_date] = availability_bid
         
@@ -130,11 +130,10 @@ class CSVPublicYestBidDataProvider(object):
         Since a PUBLIC_YESTBID file only contains bid data for a single trading day, 
         there is never more than one bid per offer date. But other data providers may 
         provide this functionality, hence a list is returned.'''
-        
         if generator_id in self.bid_by_offer_date_by_duid and offer_date in self.bid_by_offer_date_by_duid[generator_id]:
             return [ self.bid_by_offer_date_by_duid[generator_id][offer_date] ]
         else:
-            return None
+            return []
         
     def get_bids_by_offer_date_before_date(self, generator_id, date):
         '''Gets all of a generator's dispatch bids and rebids before a specified offer date,
@@ -182,15 +181,15 @@ class CSVPublicPricesDataProvider(object):
     TRADING_INTERVAL_DISPATCHABLE_LOAD_INDEX = 13
     
     def __init__(self, file_location):
-        self.file_trading_day_start_date = None
-        self.file_trading_day_end_date = None
+        self.start_date = None
+        self.end_date = None
         self._price_info_by_dispatch_interval_date_by_region_id = {} #region id mapped to dispatch interval date mapped to demand
         self._price_info_by_trading_interval_date_by_region_id = {} #region id mapped to trading interval date mapped to demand
         
         for row in reader(open(file_location, 'rb')):
             if row[self.ROW_ID_INDEX] == self.REPORT_CONTAINER_ROW_ID_CHAR and row[self.END_OF_REPORT_INDEX] != self.END_OF_REPORT_STR:
-                self.file_trading_day_end_date = datetime.strptime(row[self.FILE_PUBLISH_DATE_INDEX], self.FILE_PUBLISH_DATE_FORMAT).replace(hour=AEMOperator.TRADING_DAY_START_HOUR, minute=AEMOperator.TRADING_DAY_START_MINUTE, second=0, microsecond=0)
-                self.file_trading_day_start_date = self.file_trading_day_end_date - timedelta(days=1)
+                self.end_date = datetime.strptime(row[self.FILE_PUBLISH_DATE_INDEX], self.FILE_PUBLISH_DATE_FORMAT).replace(hour=AEMOperator.TRADING_DAY_START_HOUR, minute=AEMOperator.TRADING_DAY_START_MINUTE, second=0, microsecond=0)
+                self.start_date = self.end_date - timedelta(days=1)
             
             elif row[self.ROW_ID_INDEX] == self.DATA_ROW_ID_CHAR:
                 region_id = row[self.REGION_ID_INDEX]

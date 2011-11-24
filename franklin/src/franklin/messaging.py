@@ -40,14 +40,13 @@ class GeneratorAvailabilityBid(Message):
     def __init__(self, sender_id, settlement_date, availability_bid_by_trading_interval_date):
         super(GeneratorAvailabilityBid, self).__init__(sender_id)
         self.settlement_date = settlement_date #the trading day the bid is being submitted for
-        self.availability_bid_by_trading_interval_date = availability_bid_by_trading_interval_date #trading interval dates mapped to individual availability bids
+        self.availability_bid_by_trading_interval_date = availability_bid_by_trading_interval_date if availability_bid_by_trading_interval_date else {} #trading interval dates mapped to individual availability bids
     
     class TradingIntervalAvailabilityBid(object):
-        '''Defines a generator's availability per price band for a specified trading interval.'''
+        '''Defines a generator's availability per price band for a trading interval.'''
         
-        def __init__(self, availability_per_band, trading_interval_date, max_availability, physical_availability, rate_of_change_up_per_min, rate_of_change_down_per_min):
+        def __init__(self, availability_per_band, max_availability=None, physical_availability=None, rate_of_change_up_per_min=None, rate_of_change_down_per_min=None):
             self.availability_per_band = availability_per_band #availability per price band
-            self.trading_interval_date = trading_interval_date #the trading interval this bid applies to
             self.max_availability = max_availability  #TODO: determine when this is used
             self.physical_availability = physical_availability #the physical plant capability (MW) #TODO: determine what this is used for
             self.rate_of_change_up_per_min = rate_of_change_up_per_min #MW per min for energy raise #TODO: determine what this is used for
@@ -58,16 +57,16 @@ class GeneratorDispatchOffer(GeneratorAvailabilityBid):
     per trading interval for a specified trading day. The trading day is identified
     by the settlement day of the offer.'''
     
-    def __init__(self, sender_id, settlement_date, price_per_band, availability_bid_by_trading_interval_date):
+    def __init__(self, sender_id, settlement_date, price_per_band, availability_bid_by_trading_interval_date=None):
         super(GeneratorDispatchOffer, self).__init__(sender_id, settlement_date, availability_bid_by_trading_interval_date)
-        self.price_per_band = price_per_band #price per the band the total demand falls into
+        self.price_per_band = price_per_band
 
 class GeneratorAvailabilityRebid(GeneratorAvailabilityBid):
     '''Defines a modification to a generator's availabilities per trading interval for 
     a specified trading day, with an explanation of why the modification was made. The 
     trading day is identified by the settlement day of the bid.'''
     
-    def __init__(self, sender_id, settlement_date, rebid_explanation, availability_bid_by_trading_interval_date):
+    def __init__(self, sender_id, settlement_date, rebid_explanation='N/A', availability_bid_by_trading_interval_date=None):
         super(GeneratorAvailabilityRebid, self).__init__(sender_id, settlement_date, availability_bid_by_trading_interval_date)
         self.rebid_explanation = rebid_explanation
         

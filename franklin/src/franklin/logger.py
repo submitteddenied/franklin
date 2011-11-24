@@ -25,5 +25,3 @@ class BasicFileLogger(object):
         
     def critical(self, msg):
         logging.critical(msg)
-    
-        

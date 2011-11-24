@@ -26,7 +26,7 @@ class ChangeConsumerDemandForecastDataProviderEvent(SimulationEvent):
     '''
     
     def __init__(self, time_delta, demand_forecast_data_provider, region_id):
-        super(ChangeConsumerDemandForecastDataProviderEvent, self).__init__('Change Consumer Demand Forecast Data Provider (value=%s)', time_delta)
+        super(ChangeConsumerDemandForecastDataProviderEvent, self).__init__('Change Consumer Demand Forecast Data Provider')
         self.demand_forecast_data_provider = demand_forecast_data_provider
         self.region_id = region_id
     
